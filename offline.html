@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Offline | DNP3 UAE Guide</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.55;
+    padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px); }
+  main { max-width: 640px; margin: 0 auto; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: #fbbf24; border: 1px solid rgba(251,191,36,.5); background: rgba(251,191,36,.1); border-radius: 999px; padding: .3rem .8rem; font-size: .85rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #fbbf24; animation: p 2s infinite; }
+  @keyframes p { 50% { opacity: .3; } }
+  svg { width: 72px; height: 72px; color: #22d3ee; margin: 20px 0 4px; display: block; }
+  h1 { font-size: 1.6rem; margin: .25rem 0 .5rem; }
+  h2 { font-size: 1.05rem; margin: 1.5rem 0 .4rem; color: #22d3ee; }
+  li { margin-bottom: .4rem; }
+  .btn { display: inline-block; margin-top: 1.25rem; background: #0284c7; color: #fff; border: 0; border-radius: 10px; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <span class="status"><i class="dot"></i> No network connection</span>
+  <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M4 36h12l6-22 10 36 8-28 4 14h16" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <h1>You are offline</h1>
+  <p>This page was not saved on your device yet. The main guide works offline once it has loaded online one time. Open it from the button below or from your home screen icon.</p>
+  <a class="btn" href="./index.html">Open the guide</a>
+  <button class="btn" type="button" onclick="location.reload()">Try again</button>
+
+  <h2>Check an RS-485 link</h2>
+  <ul>
+    <li>Confirm 120 ohm termination at the two physical ends only (about 60 ohm across A and B with power off).</li>
+    <li>Confirm bias at one point only, with 200 mV or more on the idle line.</li>
+    <li>Match baud rate, parity and stop bits on every device.</li>
+    <li>Swap A and B at one device if the line shows no activity.</li>
+    <li>Check the shield is grounded at one end only.</li>
+  </ul>
+  <h2>Check an Ethernet or fibre link</h2>
+  <ul>
+    <li>Look at the link and activity LEDs on the RTU port and the switch port.</li>
+    <li>Check for a speed or duplex mismatch on both ends.</li>
+    <li>On fibre, clean the connectors and swap Tx and Rx if no light is received.</li>
+    <li>Check the switch port is in the telemetry VLAN and not shut down.</li>
+    <li>Ping the RTU from a laptop on the same VLAN and check the IP address.</li>
+  </ul>
+</main>
+</body>
+</html>

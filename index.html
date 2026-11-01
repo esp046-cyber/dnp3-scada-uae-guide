@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>DNP3 SCADA UAE Field Engineer Guide</title>
+  <meta name="description" content="Offline DNP3 integration, communication and troubleshooting guide for SCADA engineers in Dubai and the UAE: 100+ field tips, hex frame inspector, IIN decoder and field checklists.">
+  <meta name="keywords" content="DNP3, SCADA, UAE, DEWA, SEWA, FEWA, ENOC, RTU, RS-485, IEC 104, telemetry, troubleshooting">
+  <meta name="author" content="DNP3 UAE SCADA Guide">
+  <meta name="robots" content="index, follow">
+  <meta name="color-scheme" content="dark">
+
+  <!-- Theme / PWA -->
+  <meta name="theme-color" content="#0f172a">
+  <meta name="application-name" content="DNP3 UAE">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DNP3 UAE">
+  <meta name="msapplication-config" content="browserconfig.xml">
+  <meta name="msapplication-TileColor" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="canonical" href="https://YOUR-USERNAME.github.io/dnp3-uae-scada-guide/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M6 36h12l6-20 10 34 8-26 4 12h12' fill='none' stroke='%2322d3ee' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DNP3 UAE SCADA Guide">
+  <meta property="og:title" content="DNP3 SCADA UAE Field Engineer Guide">
+  <meta property="og:description" content="100+ site-hardened DNP3 tips for UAE utilities: hex frame inspector, IIN decoder, RS-485 and Ethernet diagnostics. Works offline.">
+  <meta property="og:image" content="https://YOUR-USERNAME.github.io/dnp3-uae-scada-guide/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="DNP3 SCADA UAE Field Engineer Guide with telemetry waveform">
+  <meta property="og:url" content="https://YOUR-USERNAME.github.io/dnp3-uae-scada-guide/">
+  <meta property="og:locale" content="en_AE">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DNP3 SCADA UAE Field Engineer Guide">
+  <meta name="twitter:description" content="Offline DNP3 troubleshooting and integration guide for UAE SCADA engineers.">
+  <meta name="twitter:image" content="https://YOUR-USERNAME.github.io/dnp3-uae-scada-guide/assets/og-image.png">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#grid">Skip to tips</a>
+
+  <header class="topbar" id="topbar">
+    <div class="topbar-row">
+      <a class="brand" href="./index.html" aria-label="DNP3 UAE home">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M4 36h12l6-22 10 36 8-28 4 14h16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="brand-text"><strong>DNP3 UAE</strong><small>Field engineer guide</small></span>
+      </a>
+
+      <div class="search-wrap">
+        <label class="sr-only" for="search">Search tips</label>
+        <input id="search" type="search" placeholder="Search tips, e.g. IIN, 120 ohm, DEWA, SBO" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="topbar-actions">
+        <span id="netStatus" class="badge badge-online" role="status" aria-live="polite"><i class="pulse"></i><span>Online</span></span>
+        <button id="installBtn" class="btn btn-accent" type="button" hidden>Install app</button>
+      </div>
+    </div>
+
+    <nav class="filters" aria-label="Filter by tag">
+      <div id="filters" class="pill-row" role="group" aria-label="Tag filters">
+        <button class="pill is-active" type="button" data-tag="all">All</button>
+        <button class="pill" type="button" data-tag="Serial">#Serial</button>
+        <button class="pill" type="button" data-tag="Ethernet">#Ethernet</button>
+        <button class="pill" type="button" data-tag="DEWA">#DEWA</button>
+        <button class="pill" type="button" data-tag="HexAnalysis">#HexAnalysis</button>
+        <button class="pill" type="button" data-tag="Troubleshooting">#Troubleshooting</button>
+        <button class="pill" type="button" data-tag="Cybersecurity">#Cybersecurity</button>
+        <button class="pill" type="button" data-tag="Environment">#Environment</button>
+        <button class="pill" type="button" data-tag="Protocol">#Protocol</button>
+        <button class="pill pill-star" type="button" data-tag="bookmarks">Saved <span id="bookmarkCount">0</span></button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="intro" aria-labelledby="introTitle">
+      <h1 id="introTitle">DNP3 integration and troubleshooting for UAE utility networks</h1>
+      <p>Field-tested procedures for DEWA, SEWA, FEWA and ENOC sites. Everything on this page works with no signal, including inside a substation control room.</p>
+    </section>
+
+    <section class="tools" aria-label="Decoder tools">
+      <article class="panel" aria-labelledby="iinTitle">
+        <h2 id="iinTitle">IIN decoder</h2>
+        <p class="hint">Enter the two Internal Indication bytes from a response header.</p>
+        <div class="field-row">
+          <label for="iin1">IIN1 (hex)</label>
+          <input id="iin1" class="mono" type="text" inputmode="text" maxlength="4" placeholder="80" autocomplete="off">
+          <label for="iin2">IIN2 (hex)</label>
+          <input id="iin2" class="mono" type="text" inputmode="text" maxlength="4" placeholder="00" autocomplete="off">
+        </div>
+        <ul id="iinOut" class="flag-list" aria-live="polite"></ul>
+      </article>
+
+      <article class="panel panel-wide" aria-labelledby="hexTitle">
+        <h2 id="hexTitle">Hex frame inspector</h2>
+        <p class="hint">Paste a captured DNP3 frame. Spaces, 0x prefixes and commas are fine.</p>
+        <label class="sr-only" for="hexInput">DNP3 frame in hex</label>
+        <textarea id="hexInput" class="mono" rows="3" spellcheck="false" placeholder="05 64 0B C4 01 00 00 04 xx xx ..."></textarea>
+        <div class="btn-row">
+          <button id="hexDecode" class="btn btn-accent" type="button">Decode frame</button>
+          <button id="hexSample" class="btn" type="button">Load sample</button>
+          <button id="hexClear" class="btn btn-ghost" type="button">Clear</button>
+        </div>
+        <div id="hexOut" class="hex-out" aria-live="polite"></div>
+      </article>
+    </section>
+
+    <section class="results" aria-labelledby="resultsTitle">
+      <div class="results-head">
+        <h2 id="resultsTitle">Field tips and SOPs</h2>
+        <p id="resultCount" class="count" role="status" aria-live="polite">Loading tips</p>
+        <div class="results-actions">
+          <label class="sr-only" for="sortSelect">Sort tips</label>
+          <select id="sortSelect">
+            <option value="default">Default order</option>
+            <option value="severity">Highest severity first</option>
+            <option value="title">Title A to Z</option>
+          </select>
+          <button id="checklistBtn" class="btn" type="button">Field checklist <span id="checkCount" class="chip">0</span></button>
+        </div>
+      </div>
+
+      <div id="grid" class="grid" tabindex="-1"></div>
+      <div id="empty" class="empty" hidden>
+        <p><strong>No tips match your search.</strong></p>
+        <p>Clear the search box or pick another tag.</p>
+        <button id="resetFilters" class="btn" type="button">Reset filters</button>
+      </div>
+    </section>
+
+    <noscript>
+      <p class="noscript">This guide needs JavaScript to list its tips and run the decoders. Enable JavaScript and reload.</p>
+    </noscript>
+  </main>
+
+  <footer class="footer">
+    <p>For engineering reference only. Always follow your utility's approved procedures, permit-to-work rules and the vendor manuals for the device on site.</p>
+    <p class="mono">Version 1.0.0 &middot; MIT licence</p>
+  </footer>
+
+  <!-- Detail modal -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" type="button" data-close aria-label="Close">&times;</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Checklist drawer -->
+  <aside id="checklist" class="drawer" role="dialog" aria-modal="true" aria-labelledby="checklistTitle" hidden>
+    <div class="modal-backdrop" data-close-drawer></div>
+    <div class="drawer-card">
+      <div class="drawer-head">
+        <h2 id="checklistTitle">Field checklist</h2>
+        <button class="modal-close" type="button" data-close-drawer aria-label="Close checklist">&times;</button>
+      </div>
+      <p class="hint">Add steps from any tip. Progress is saved on this device.</p>
+      <ul id="checklistItems" class="check-list"></ul>
+      <div class="btn-row">
+        <button id="checklistCopy" class="btn btn-accent" type="button">Copy checklist</button>
+        <button id="checklistReset" class="btn btn-ghost" type="button">Clear all</button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="script.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('service-worker.js').catch(function (err) {
+          console.warn('Service worker registration failed:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
