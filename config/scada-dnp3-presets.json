@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "description": "Starting-point DNP3 presets for UAE utility RTU commissioning. Confirm every value against the utility specification and the device manual.",
+  "objectGroups": [
+    { "group": 1,  "variation": 1, "name": "Binary input, packed",            "type": "static", "note": "Compact; no quality flags" },
+    { "group": 1,  "variation": 2, "name": "Binary input with flags",         "type": "static", "note": "Preferred static variation" },
+    { "group": 2,  "variation": 1, "name": "Binary input event, no time",     "type": "event" },
+    { "group": 2,  "variation": 2, "name": "Binary input event, absolute time", "type": "event", "note": "Use for SOE" },
+    { "group": 2,  "variation": 3, "name": "Binary input event, relative time", "type": "event", "note": "Needs g51 CTO" },
+    { "group": 10, "variation": 2, "name": "Binary output status with flags", "type": "static" },
+    { "group": 12, "variation": 1, "name": "Control relay output block (CROB)", "type": "control", "note": "0x11 pulse close, 0x21 pulse trip, 0x03 latch on, 0x04 latch off" },
+    { "group": 20, "variation": 1, "name": "32-bit counter with flag",        "type": "static" },
+    { "group": 21, "variation": 1, "name": "32-bit frozen counter with flag", "type": "static", "note": "Use for energy and billing" },
+    { "group": 22, "variation": 1, "name": "32-bit counter event, no time",   "type": "event" },
+    { "group": 30, "variation": 1, "name": "32-bit analogue input with flag", "type": "static" },
+    { "group": 30, "variation": 2, "name": "16-bit analogue input with flag", "type": "static", "note": "Watch for overflow" },
+    { "group": 30, "variation": 5, "name": "Single-precision float analogue input", "type": "static" },
+    { "group": 32, "variation": 1, "name": "32-bit analogue event, no time",  "type": "event" },
+    { "group": 32, "variation": 3, "name": "32-bit analogue event with time", "type": "event" },
+    { "group": 32, "variation": 7, "name": "Float analogue event with time",  "type": "event" },
+    { "group": 40, "variation": 1, "name": "32-bit analogue output status",   "type": "static" },
+    { "group": 41, "variation": 1, "name": "32-bit analogue output block",    "type": "control" },
+    { "group": 50, "variation": 1, "name": "Time and date",                   "type": "time" },
+    { "group": 51, "variation": 1, "name": "Common time of occurrence (CTO)", "type": "time" },
+    { "group": 52, "variation": 2, "name": "Time delay fine",                 "type": "time" },
+    { "group": 60, "variation": 1, "name": "Class 0 data",                    "type": "class" },
+    { "group": 60, "variation": 2, "name": "Class 1 data",                    "type": "class" },
+    { "group": 60, "variation": 3, "name": "Class 2 data",                    "type": "class" },
+    { "group": 60, "variation": 4, "name": "Class 3 data",                    "type": "class" },
+    { "group": 80, "variation": 1, "name": "Internal indications",            "type": "static", "note": "Write index 7 = 0 to clear Device Restart" }
+  ],
+  "serialPresets": {
+    "baudRates": [9600, 19200, 38400, 57600, 115200],
+    "defaultFraming": "8N1",
+    "typical": [
+      { "use": "Legacy RTU, long multi-drop run", "baud": 9600,   "framing": "8N1" },
+      { "use": "Standard substation RS-485",      "baud": 19200,  "framing": "8N1" },
+      { "use": "Short link between IEDs",         "baud": 57600,  "framing": "8N1" },
+      { "use": "Local commissioning link",        "baud": 115200, "framing": "8N1" }
+    ],
+    "termination": { "endOfLineOhm": 120, "biasOhmRange": [450, 650], "biasPoints": 1 }
+  },
+  "ipPresets": { "dnp3TcpPort": 20000, "dnp3TlsPort": 19999, "iec104Port": 2404, "tcpKeepaliveSeconds": [5, 15] },
+  "pollingIntervalsStarting": {
+    "note": "Starting points only; agree final values with the control centre.",
+    "serial9600": { "class1Seconds": 5, "class2Seconds": 10, "class3Seconds": 30, "integrityMinutes": 60 },
+    "serial19200": { "class1Seconds": 3, "class2Seconds": 5, "class3Seconds": 20, "integrityMinutes": 30 },
+    "ip": { "class1Seconds": 2, "class2Seconds": 5, "class3Seconds": 10, "integrityMinutes": 15 },
+    "unsolicited": { "enabledClasses": [1, 2, 3], "integrityMinutes": 30 }
+  },
+  "timeouts": { "selectSeconds": [5, 10], "responseSeconds": { "serial": [3, 10], "radio": [5, 15], "ip": [2, 5] } },
+  "registerMapTemplate": [
+    { "index": 0, "tag": "CB1_STATUS",  "group": 1,  "variation": 2, "class": 1, "description": "Circuit breaker 1 status", "scale": null, "unit": null },
+    { "index": 0, "tag": "CB1_CMD",     "group": 12, "variation": 1, "class": null, "description": "Circuit breaker 1 trip/close (SBO)", "scale": null, "unit": null },
+    { "index": 0, "tag": "BUS_KV",      "group": 30, "variation": 1, "class": 2, "description": "11 kV bus voltage", "scale": 0.01, "unit": "kV", "deadbandPercent": 0.5 },
+    { "index": 1, "tag": "FDR1_MW",     "group": 30, "variation": 1, "class": 2, "description": "Feeder 1 active power", "scale": 0.01, "unit": "MW", "deadbandPercent": 1 },
+    { "index": 0, "tag": "FDR1_MWH",    "group": 21, "variation": 1, "class": 3, "description": "Feeder 1 energy (frozen)", "scale": 1, "unit": "kWh" },
+    { "index": 2, "tag": "KIOSK_TEMP",  "group": 30, "variation": 1, "class": 3, "description": "Kiosk internal temperature", "scale": 0.1, "unit": "C", "deadbandPercent": 2 }
+  ]
+}
