@@ -79,6 +79,12 @@
         <button class="pill pill-star" type="button" data-tag="bookmarks">Saved <span id="bookmarkCount">0</span></button>
       </div>
     </nav>
+
+    <nav id="toolbar" class="toolbar" aria-label="Field tools">
+      <button type="button" class="tool-btn" data-tool="objects">Object Cheat Sheet</button>
+      <button type="button" class="tool-btn" data-tool="sbo">SBO Simulator</button>
+      <button type="button" class="tool-btn" data-tool="filters">Sniffer Filters</button>
+    </nav>
   </header>
 
   <main class="shell">
@@ -176,6 +182,15 @@
       </div>
     </div>
   </aside>
+
+  <!-- Field tools modal -->
+  <div id="toolModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="toolTitle" hidden>
+    <div class="modal-backdrop" data-close-tool></div>
+    <div class="modal-card wide">
+      <button class="modal-close" type="button" data-close-tool aria-label="Close">&times;</button>
+      <div id="toolBody"></div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

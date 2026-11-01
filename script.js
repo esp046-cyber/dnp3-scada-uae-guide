@@ -916,6 +916,233 @@
   function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
   function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
 
+  // ---------- toolbox: object cheat sheet, SBO simulator, sniffer filters ----------
+  var OBJ = [
+    { g: 1, t: 'Binary input (static)', r: [
+      [1, 'Packed', '1 bit per point, no quality flags', 'Compact bulk status read', 1],
+      [2, 'With flags', '1 byte: bit 7 = state, bits 0-6 = quality (online, restart, comm lost, forced, chatter)', 'Preferred static variation', 1]] },
+    { g: 2, t: 'Binary input event', r: [
+      [1, 'Without time', '1 byte flags and state', 'Use when the master stamps the time', 1],
+      [2, 'Absolute time', '1 byte flags + 6-byte time (48-bit ms since 1970 UTC)', 'SOE and breaker trips', 1],
+      [3, 'Relative time', '1 byte flags + 2-byte ms offset', 'Needs a g51 CTO object first', 1]] },
+    { g: 10, t: 'Binary output (status)', r: [
+      [1, 'Packed', '1 bit per point', 'Read back output state', 1],
+      [2, 'With flags', '1 byte flags and state', 'Preferred output status', 1]] },
+    { g: 12, t: 'Control relay output block (CROB)', r: [
+      [1, 'CROB', '11 bytes: control code, count, on-time ms (4), off-time ms (4), status', 'Select, Operate, Direct Operate. Pulse close 0x11, pulse trip 0x21, latch on 0x03, latch off 0x04', 0]],
+      note: 'Control code bits: 0-3 operation (1 pulse on, 2 pulse off, 3 latch on, 4 latch off), 4-5 close (1) or trip (2), 6 clear, 7 queue.' },
+    { g: 20, t: 'Counter (running)', r: [
+      [1, '32-bit with flag', '1 flag byte + 4 bytes', 'Running count', 1],
+      [2, '16-bit with flag', '1 flag byte + 2 bytes', 'Wraps at 65535', 1],
+      [5, '32-bit, no flag', '4 bytes', 'Compact count', 1],
+      [6, '16-bit, no flag', '2 bytes', 'Compact count', 1]] },
+    { g: 21, t: 'Frozen counter', r: [
+      [1, '32-bit with flag', '1 flag byte + 4 bytes', 'Billing and energy: Immediate Freeze (FC 0x07) then read', 1],
+      [5, '32-bit with flag and time', 'flag + 4 bytes + 6-byte time', 'Frozen value with freeze time', 1]] },
+    { g: 22, t: 'Counter event', r: [
+      [1, '32-bit with flag', '1 flag byte + 4 bytes', 'Event on counter change', 1],
+      [2, '16-bit with flag', '1 flag byte + 2 bytes', 'Event on counter change', 1],
+      [5, '32-bit with flag and time', 'flag + 4 bytes + 6-byte time', 'Timestamped counter event', 1],
+      [6, '16-bit with flag and time', 'flag + 2 bytes + 6-byte time', 'Timestamped counter event', 1]] },
+    { g: 30, t: 'Analogue input (static)', r: [
+      [1, '32-bit with flag', '1 flag byte + 4-byte signed', 'Default choice for MW, kV', 1],
+      [2, '16-bit with flag', '1 flag byte + 2-byte signed', 'Overflows past 32767', 1],
+      [3, '32-bit, no flag', '4-byte signed', 'Compact', 1],
+      [4, '16-bit, no flag', '2-byte signed', 'Compact', 1],
+      [5, 'Single float with flag', 'flag + IEEE 754 float', 'Check the master supports it', 1],
+      [6, 'Double float with flag', 'flag + IEEE 754 double', 'Rarely needed', 1]] },
+    { g: 32, t: 'Analogue input event', r: [
+      [1, '32-bit, no time', '1 flag byte + 4 bytes', 'Master stamps time', 1],
+      [2, '16-bit, no time', '1 flag byte + 2 bytes', 'Master stamps time', 1],
+      [3, '32-bit with time', 'flag + 4 bytes + 6-byte time', 'Timestamped analogue events', 1],
+      [4, '16-bit with time', 'flag + 2 bytes + 6-byte time', 'Timestamped analogue events', 1],
+      [5, 'Single float, no time', 'flag + float', 'Float events', 1],
+      [7, 'Single float with time', 'flag + float + 6-byte time', 'Float events with time', 1]] },
+    { g: 34, t: 'Analogue input deadband', r: [
+      [1, '16-bit deadband', '2 bytes per point', 'Read or write (FC 0x02) the event deadband', 1],
+      [2, '32-bit deadband', '4 bytes per point', 'Same, for 32-bit points', 1],
+      [3, 'Float deadband', '4-byte float', 'Same, for float points', 1]] },
+    { g: 50, t: 'Time and date', r: [
+      [1, 'Time and date', '6 bytes: ms since 1970-01-01 UTC', 'Write (FC 0x02) to synchronise the outstation clock; send UTC', 1],
+      [3, 'Last recorded time', '6 bytes', 'Used with Record Current Time (FC 0x18)', 1]] },
+    { g: 60, t: 'Class data', r: [
+      [1, 'Class 0', 'All static data', 'Integrity poll', 1],
+      [2, 'Class 1', 'Events assigned to Class 1', 'Event poll', 1],
+      [3, 'Class 2', 'Events assigned to Class 2', 'Event poll', 1],
+      [4, 'Class 3', 'Events assigned to Class 3', 'Event poll', 1]] }
+  ];
+
+  function objTable(q) {
+    q = (q || '').toLowerCase().trim();
+    var html = '';
+    OBJ.forEach(function (grp) {
+      var rows = grp.r.filter(function (r) {
+        return !q || (('g' + grp.g + 'v' + r[0] + ' group ' + grp.g + ' ' + grp.t + ' ' + r[1] + ' ' + r[2] + ' ' + r[3]).toLowerCase().indexOf(q) >= 0);
+      });
+      if (!rows.length) return;
+      html += '<tr class="grp"><td colspan="5">Group ' + grp.g + ': ' + esc(grp.t) + '</td></tr>';
+      rows.forEach(function (r) {
+        var bytes = r[4] ? hex2(grp.g) + ' ' + hex2(r[0]) + ' 06' : '';
+        html += '<tr><td class="mono">g' + grp.g + 'v' + r[0] + '</td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' +
+          (bytes ? '<button type="button" class="copy-chip mono" data-tcopy="' + bytes + '" aria-label="Copy read-all bytes for g' + grp.g + 'v' + r[0] + '">' + bytes + '</button>' : '<span class="muted">control only</span>') + '</td></tr>';
+      });
+      if (grp.note) html += '<tr class="note"><td colspan="5">' + esc(grp.note) + '</td></tr>';
+    });
+    return html || '<tr><td colspan="5" class="muted">No objects match.</td></tr>';
+  }
+
+  function toolObjects() {
+    return '<h2 id="toolTitle">DNP3 object cheat sheet</h2><p class="hint">Tap a hex chip to copy the group, variation and qualifier 06 (all objects) for a Read request.</p>' +
+      '<label class="sr-only" for="csFilter">Filter objects</label><input id="csFilter" type="search" placeholder="Filter, e.g. g30, float, counter, time" autocomplete="off">' +
+      '<div class="table-wrap"><table class="hex-table obj-table"><thead><tr><th>Object</th><th>Variation</th><th>Content</th><th>Typical use</th><th>Read-all bytes</th></tr></thead><tbody id="csBody">' + objTable('') + '</tbody></table></div>';
+  }
+
+  // ----- SBO simulator -----
+  var SBO_TIMEOUT = 10;
+  var sbo = { state: 'idle', t0: 0, timer: null };
+  function sboFrame(ctrl, dst, src, user) { return buildFrame(ctrl, dst, src, user).map(hex2).join(' '); }
+  function sboClock() { return ((Date.now() - sbo.t0) / 1000).toFixed(1) + ' s'; }
+  function sboStop() { if (sbo.timer) { clearInterval(sbo.timer); sbo.timer = null; } }
+
+  function toolSBO() {
+    return '<h2 id="toolTitle">SBO timing simulator</h2>' +
+      '<p class="hint">Breaker CB-03, index 5, CROB pulse close (0x11), on-time 100 ms. The outstation arms the point for ' + SBO_TIMEOUT + ' seconds after Select.</p>' +
+      '<div class="sbo-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + SBO_TIMEOUT + '" aria-valuenow="0" id="sboBarWrap"><div id="sboBar" class="sbo-fill"></div></div>' +
+      '<p id="sboStatus" class="sbo-status">Idle. Send Select to arm the point.</p>' +
+      '<div class="btn-row"><button type="button" class="btn btn-accent" id="sboSelect">Send Select (Func 0x03, CROB Close)</button>' +
+      '<button type="button" class="btn" id="sboOperate" disabled>Send Operate (Func 0x04)</button>' +
+      '<button type="button" class="btn btn-ghost" id="sboReset">Reset</button></div>' +
+      '<div id="sboLog" class="sbo-log" aria-live="polite"></div>' +
+      '<p class="hint small">Control status codes (IEEE 1815): 0x00 Success, 0x01 Timeout, 0x02 No Select, 0x04 Not Supported, 0x07 Local, 0x08 Too Many Objects. Arm timeout is 0x01; some devices answer 0x02 after the window.</p>';
+  }
+
+  function sboLog(title, frameHex, note, cls) {
+    var el = $('sboLog'); if (!el) return;
+    var d = document.createElement('div');
+    d.className = 'log-item ' + (cls || '');
+    d.innerHTML = '<b>' + esc(title) + '</b><pre class="hexbox mono">' + esc(frameHex) + '</pre><p>' + esc(note) + '</p>' +
+      '<button type="button" class="btn" data-inspect="' + esc(frameHex) + '">Open in inspector</button>';
+    el.insertBefore(d, el.firstChild);
+  }
+
+  function sboUpdate() {
+    var el = (Date.now() - sbo.t0) / 1000, left = Math.max(SBO_TIMEOUT - el, 0);
+    var bar = $('sboBar'); if (!bar) { sboStop(); return; }
+    bar.style.width = (left / SBO_TIMEOUT * 100) + '%';
+    bar.className = 'sbo-fill ' + (left > SBO_TIMEOUT * 0.5 ? 'ok' : left > SBO_TIMEOUT * 0.2 ? 'warn' : 'bad');
+    $('sboBarWrap').setAttribute('aria-valuenow', left.toFixed(1));
+    if (left <= 0) {
+      sboStop(); sbo.state = 'expired';
+      $('sboStatus').textContent = 'Arm window expired. The outstation has dropped the select.';
+      sboLog(sboClock() + '  Arm timer expired', '', 'No Operate arrived within ' + SBO_TIMEOUT + ' s. A late Operate will be refused.', 'bad');
+    } else {
+      $('sboStatus').textContent = 'Armed. Operate must arrive in ' + left.toFixed(1) + ' s.';
+    }
+  }
+
+  function sboSelect() {
+    sboStop(); sbo.state = 'armed'; sbo.t0 = Date.now();
+    $('sboOperate').disabled = false;
+    sboLog('0.0 s  Select sent', sboFrame(0xC4, 10, 1, CROBQ(0x03, 3, 0x11, 0x64, 0x00)), 'Function 0x03, g12 v1 index 5. App sequence 3.', '');
+    sboLog('0.0 s  Select response', sboFrame(0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)), 'Control status 0x00 Success: point armed for ' + SBO_TIMEOUT + ' s.', 'ok');
+    sboUpdate(); sbo.timer = setInterval(sboUpdate, 100);
+  }
+
+  function sboOperate() {
+    var t = sbo.state === 'idle' ? '0.0 s' : sboClock();
+    var st, note, cls;
+    if (sbo.state === 'armed') { st = 0; note = 'Control status 0x00 Success. The RTU pulses the close output for 100 ms.'; cls = 'ok'; sboStop(); sbo.state = 'done'; $('sboStatus').textContent = 'Operate executed. Breaker command issued.'; var b = $('sboBar'); b.style.width = '100%'; b.className = 'sbo-fill ok'; $('sboOperate').disabled = true; }
+    else if (sbo.state === 'expired') { st = 1; note = 'Control status 0x01 Timeout: Operate arrived after the arm window closed. Send Select again.'; cls = 'bad'; $('sboStatus').textContent = 'Operate refused: arm timeout.'; }
+    else { st = 2; note = 'Control status 0x02 No Select: nothing is armed. Send Select first.'; cls = 'bad'; }
+    sboLog(t + '  Operate sent', sboFrame(0xC4, 10, 1, CROBQ(0x04, 4, 0x11, 0x64, 0x00)), 'Function 0x04, same objects, app sequence 4 (Select + 1).', '');
+    sboLog(t + '  Operate response', sboFrame(0x44, 1, 10, CROBR(4, 0x11, 0x64, 0x00, st)), note, cls);
+  }
+
+  function sboReset() {
+    sboStop(); sbo.state = 'idle';
+    if (!$('sboBar')) return;
+    $('sboBar').style.width = '0%'; $('sboBar').className = 'sbo-fill';
+    $('sboStatus').textContent = 'Idle. Send Select to arm the point.';
+    $('sboOperate').disabled = true; $('sboLog').innerHTML = '';
+  }
+
+  // ----- sniffer filters -----
+  function filterList(a) {
+    return [
+      { l: 'All DNP3 traffic', f: 'dnp3', n: 'Base filter. Add tcp.port == 20000 if a capture is not decoded as DNP3.' },
+      { l: 'One station (link address)', f: 'dnp3.src == ' + a + ' || dnp3.dst == ' + a, n: 'Link-layer addresses are dnp3.src and dnp3.dst. The field dnp3.addr matches either.' },
+      { l: 'SBO controls: Select and Operate', f: 'dnp3.al.func == 0x03 || dnp3.al.func == 0x04', n: 'Add dnp3.al.func == 0x05 for Direct Operate.' },
+      { l: 'Rejected controls', f: 'dnp3.al.ctrlstatus != 0', n: 'Control status other than 0x00 Success.' },
+      { l: 'IIN Device Restart', f: 'dnp3.al.iin.rst == 1', n: 'IIN1.7 set in a response.' },
+      { l: 'IIN Need Time', f: 'dnp3.al.iin.tsr == 1', n: 'IIN1.4: the RTU wants a time write.' },
+      { l: 'IIN Event Buffer Overflow', f: 'dnp3.al.iin.ebo == 1', n: 'IIN2.3.' },
+      { l: 'Unsolicited responses', f: 'dnp3.al.func == 0x82', n: 'Function 0x82.' },
+      { l: 'CRC failures', f: 'dnp.hdr.CRC.status == 0 || dnp.data_chunk.CRC.status == 0', n: 'Wireshark 2.4 and later. Status 0 = bad checksum. The field prefix is dnp, not dnp3.' }
+    ];
+  }
+
+  function filterRows(a) {
+    return filterList(a).map(function (x) {
+      return '<div class="flt"><div class="flt-l">' + esc(x.l) + '</div><div class="flt-row"><code class="flt-f mono">' + esc(x.f) + '</code>' +
+        '<button type="button" class="btn" data-tcopy="' + esc(x.f) + '">Copy</button></div><p class="ex-n">' + esc(x.n) + '</p></div>';
+    }).join('');
+  }
+
+  function toolFilters() {
+    return '<h2 id="toolTitle">Wireshark / sniffer display filters</h2>' +
+      '<p class="hint">Paste into the Wireshark display filter bar. Field names checked against the Wireshark DNP3 dissector reference.</p>' +
+      '<div class="field-row"><label for="sfAddr">Station address</label><input id="sfAddr" class="mono" type="text" inputmode="numeric" maxlength="5" value="10" autocomplete="off"></div>' +
+      '<div id="sfList">' + filterRows(10) + '</div>';
+  }
+
+  // ----- tool modal plumbing -----
+  var toolFocus = null;
+  function openTool(name) {
+    toolFocus = document.activeElement;
+    sboStop();
+    $('toolBody').innerHTML = name === 'sbo' ? toolSBO() : name === 'filters' ? toolFilters() : toolObjects();
+    sbo.state = 'idle';
+    $('toolModal').hidden = false;
+    document.body.classList.add('no-scroll');
+    var c = $('toolModal').querySelector('.modal-close'); if (c) c.focus();
+  }
+  function closeTool() {
+    sboStop();
+    $('toolModal').hidden = true;
+    document.body.classList.remove('no-scroll');
+    if (toolFocus && toolFocus.focus) toolFocus.focus();
+  }
+
+  function bindTools() {
+    $('toolbar').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-tool]'); if (b) openTool(b.getAttribute('data-tool'));
+    });
+    $('toolModal').addEventListener('click', function (e) {
+      if (e.target.closest('[data-close-tool]')) { closeTool(); return; }
+      var cp = e.target.closest('[data-tcopy]');
+      if (cp) { copyText(cp.getAttribute('data-tcopy'), 'Copied'); return; }
+      var ins = e.target.closest('[data-inspect]');
+      if (ins) {
+        var h = ins.getAttribute('data-inspect'); closeTool();
+        if (h) { $('hexInput').value = h; inspectFrame(); $('hexTitle').scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('Frame loaded into the inspector'); }
+        return;
+      }
+      var id = e.target.id;
+      if (id === 'sboSelect') sboSelect();
+      else if (id === 'sboOperate') sboOperate();
+      else if (id === 'sboReset') sboReset();
+    });
+    $('toolModal').addEventListener('input', function (e) {
+      if (e.target.id === 'csFilter') $('csBody').innerHTML = objTable(e.target.value);
+      if (e.target.id === 'sfAddr') {
+        var v = e.target.value.replace(/\D/g, '').slice(0, 5);
+        if (v !== e.target.value) e.target.value = v;
+        var n = Math.min(parseInt(v || '10', 10), 65535);
+        $('sfList').innerHTML = filterRows(isNaN(n) ? 10 : n);
+      }
+    });
+  }
+
   // ---------- init ----------
   function init() {
     render();
@@ -968,6 +1195,7 @@
     });
 
     $('checklistBtn').addEventListener('click', openDrawer);
+    bindTools();
     $('checklist').addEventListener('click', function (e) {
       if (e.target.closest('[data-close-drawer]')) { closeDrawer(); return; }
       var op = e.target.closest('[data-open]');
@@ -991,7 +1219,7 @@
     });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { if (!$('modal').hidden) closeModal(); if (!$('checklist').hidden) closeDrawer(); }
+      if (e.key === 'Escape') { if (!$('toolModal').hidden) closeTool(); if (!$('modal').hidden) closeModal(); if (!$('checklist').hidden) closeDrawer(); }
     });
 
     $('iin1').addEventListener('input', decodeIIN);
