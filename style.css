@@ -212,3 +212,11 @@ textarea { resize: vertical; font-size: .85rem; }
 .fix li::marker { color: var(--green); font-weight: 700; }
 .results-head { margin-top: 1rem; }
 @media (max-width: 480px) { .scen { padding: 14px; } .stage-btn { font-size: .8rem; padding: .45rem .7rem; } }
+
+/* fix block prominence and expected-response blocks */
+.blk.good { background: rgba(16,185,129,.08); border: 1px solid rgba(52,211,153,.35); border-radius: 10px; padding: 10px 12px; }
+.blk.ok h4 { color: var(--green); }
+.ex-resp { border-color: rgba(52,211,153,.45); }
+.blk h5 { margin: .7rem 0 .25rem; font-size: .78rem; color: var(--muted); font-weight: 600; }
+.where { margin: 0; padding-left: 1.1rem; font-size: .85rem; color: #cbd5e1; }
+.where li { margin-bottom: .2rem; }
