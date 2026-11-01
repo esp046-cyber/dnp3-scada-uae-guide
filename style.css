@@ -243,3 +243,19 @@ textarea { resize: vertical; font-size: .85rem; }
 @media (min-width: 1100px) {
   .stages, .pill-row { -webkit-mask-image: none; mask-image: none; padding-right: 0; }
 }
+
+/* ---------- uniform card layout: context, problem, fix (with settings), trace ---------- */
+.blk.good .params { margin-bottom: .25rem; }
+.fix-actions { margin-top: .85rem; padding-top: .7rem; border-top: 1px dashed rgba(52,211,153,.35); }
+.fix-actions .btn { width: 100%; background: rgba(16,185,129,.18); border-color: rgba(52,211,153,.55); color: #d1fae5; font-weight: 600; }
+.fix-actions .btn:hover { background: rgba(16,185,129,.3); }
+.ex-sub { margin: .6rem 0 .4rem; font-size: .78rem; font-weight: 600; color: var(--muted); }
+.ex-sub.ok { color: var(--green); }
+
+/* ---------- decoded table: full text on narrow screens ---------- */
+.table-wrap { padding-bottom: .5rem; }
+.hex-table { table-layout: auto; }
+.hex-table th, .hex-table td { padding: .45rem .6rem .5rem; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.hex-table td:first-child { white-space: nowrap; }
+.hex-table td.mono { word-break: break-all; }
+@media (max-width: 600px) { .hex-table td:last-child { min-width: 13rem; } .hex-table { font-size: .8rem; } }

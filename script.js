@@ -334,7 +334,7 @@
   var OKD = { l: 'Expected Class 0 response with data', k: 'hex', f: RSP(0, 0, CLS0), n: 'g1 v2 point 0 (flag 81 = online, ON) then g30 v1 point 0 (flag 01, value 0x000007D0 = 2000).' };
 
   var EXTRA = [
-    { where: ['RTU configurator, DNP3 outstation settings: data link / outstation address (check decimal vs hex)', 'Master driver, channel or device settings: destination address'], resp: [OKD] },
+    { where: ['Physical: Check EOL termination switch on RS-485 transceiver or intermediate junction boxes.', 'Driver/Port Settings: Adjust inter-character timeout (e.g., 2-4ms at 9600 baud) and baud rate/parity.'], resp: [OKD] },
     { where: ['RTU hardware data sheet: operating temperature and derating table', 'RTU analogue point list: add kiosk temperature'], resp: [OK] },
     { where: ['Enclosure and gland schedule, not a software setting', 'RTU diagnostics page: hardware status'], resp: [OK] },
     { where: ['Earthing drawing: shield bonding points', 'Fibre converter: mode switch / port setup'], resp: [OK] },
@@ -652,19 +652,24 @@
     var saved = state.bookmarks.indexOf(s.id) >= 0;
     var inList = state.checklist.some(function (c) { return c.id === s.id; });
     var idx = SCEN.indexOf(s);
+    function ul(cls, arr) { return '<ul class="' + cls + '">' + arr.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>'; }
+    var fix = '<section class="blk good"><h4>Actionable fix</h4>' +
+      '<ol class="fix">' + s.fix.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ol>' +
+      (s.where && s.where.length ? '<h5>Where to change it (menu names vary by vendor)</h5>' + ul('where', s.where) : '') +
+      (s.params && s.params.length ? '<h5>Settings to apply</h5>' + ul('params mono', s.params) : '') +
+      '<div class="fix-actions"><button type="button" class="btn" data-sc-check="' + s.id + '">' + (inList ? 'Remove from checklist' : 'Add fix to field checklist') + '</button></div></section>';
+    var hasEx = s.ex && s.ex.length, hasResp = s.resp && s.resp.length;
+    var trace = (hasEx || hasResp) ? '<section class="blk"><h4>Trace / hex example</h4>' +
+      (hasEx ? '<h5 class="ex-sub">Request or capture</h5>' + exBlock(s.ex, idx, 'e', false) : '') +
+      (hasResp ? '<h5 class="ex-sub ok">Expected response once fixed</h5>' + exBlock(s.resp, idx, 'r', true) : '') + '</section>' : '';
     return '<article class="scen sev-' + s.sev + '" data-scen="' + s.id + '">' +
       '<div class="card-top"><span class="stage-badge">Stage ' + s.s + '</span><span class="sev">' + SEV[s.sev] + '</span>' +
       '<button type="button" class="bm' + (saved ? ' is-saved' : '') + '" data-bm="' + s.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? 'Remove bookmark' : 'Bookmark scenario') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button></div>' +
       '<h3>' + esc(s.t) + '</h3>' +
       '<section class="blk"><h4>Site context</h4><p>' + esc(s.site) + '</p></section>' +
       '<section class="blk bad"><h4>What goes wrong</h4><p>' + esc(s.sym) + '</p></section>' +
-      '<section class="blk good"><h4>Actionable fix</h4><ol class="fix">' + s.fix.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ol>' +
-      (s.where && s.where.length ? '<h5>Where to change it (menu names vary by vendor)</h5><ul class="where">' + s.where.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') + '</section>' +
-      (s.ex.length ? '<section class="blk"><h4>Request / trace example</h4>' + exBlock(s.ex, idx, 'e', false) + '</section>' : '') +
-      (s.resp && s.resp.length ? '<section class="blk ok"><h4>Expected response once fixed</h4>' + exBlock(s.resp, idx, 'r', true) + '</section>' : '') +
-      '<section class="blk"><h4>Settings to apply</h4><ul class="params mono">' + s.params.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></section>' +
-      '<div class="tags">' + s.tags.map(function (g) { return '<span class="tag">#' + esc(g) + '</span>'; }).join('') + '</div>' +
-      '<div class="btn-row"><button type="button" class="btn" data-sc-check="' + s.id + '">' + (inList ? 'Remove from checklist' : 'Add to checklist') + '</button></div></article>';
+      fix + trace +
+      '<div class="tags">' + s.tags.map(function (g) { return '<span class="tag">#' + esc(g) + '</span>'; }).join('') + '</div></article>';
   }
 
   function renderScenarios() {
