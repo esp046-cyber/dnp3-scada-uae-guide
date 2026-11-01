@@ -1,5 +1,5 @@
 /* DNP3 SCADA UAE Field Engineer Guide - service worker */
-var CACHE = 'dnp3-scada-uae-v1.1.0';
+var CACHE = 'dnp3-scada-uae-v1.1.1';
 var ASSETS = [
   './', './index.html', './style.css', './script.js', './manifest.json', './offline.html',
   './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './favicon.ico',

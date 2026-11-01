@@ -31,10 +31,12 @@ p { margin: 0 0 .75rem; }
 
 /* header */
 .topbar {
-  position: sticky; top: 0; z-index: 40;
+  position: -webkit-sticky; position: sticky; top: 0; z-index: 50;
   padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
-  background: rgba(15, 23, 42, .78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background-color: #0f172a !important; /* opaque: scrolled content must never show through */
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 6px 16px rgba(2, 6, 23, .55);
+  -webkit-transform: translateZ(0); transform: translateZ(0); /* own compositing layer on iOS Safari */
 }
 .topbar-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1400px; margin: 0 auto; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
@@ -220,3 +222,24 @@ textarea { resize: vertical; font-size: .85rem; }
 .blk h5 { margin: .7rem 0 .25rem; font-size: .78rem; color: var(--muted); font-weight: 600; }
 .where { margin: 0; padding-left: 1.1rem; font-size: .85rem; color: #cbd5e1; }
 .where li { margin-bottom: .2rem; }
+
+/* ---------- fix 1: stacking order, scrolled content stays behind the header ---------- */
+.shell, .footer { position: relative; z-index: 1; }
+.shell { isolation: isolate; }          /* contains the blur layers of cards and panels */
+.panel, .card, .scen { z-index: 0; }
+.modal, .drawer { z-index: 80; }
+.toast { z-index: 120; }
+
+/* ---------- fix 3: horizontal scrollers show a right-edge fade and end padding ---------- */
+.stages, .pill-row {
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 16px;
+  padding-right: 40px;                   /* last pill can scroll clear of the fade */
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent 100%);
+}
+.stage-btn, .pill { scroll-snap-align: start; }
+@media (min-width: 1100px) {
+  .stages, .pill-row { -webkit-mask-image: none; mask-image: none; padding-right: 0; }
+}

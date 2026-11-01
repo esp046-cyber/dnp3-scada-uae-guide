@@ -849,7 +849,7 @@
     rows.push(row('Length', hex2(len), len + ' (5 header bytes + ' + Math.max(len - 5, 0) + ' user data bytes, CRCs excluded)'));
     var ctl = b[3], dir = (ctl >> 7) & 1, prm = (ctl >> 6) & 1, fn = ctl & 15;
     var fnName = (prm ? LINK_PRI : LINK_SEC)[fn] || 'Unknown';
-    rows.push(row('Link control', hex2(ctl), (dir ? 'From master' : 'From outstation') + ', ' + (prm ? 'primary' : 'secondary') + ', function ' + fn + ' ' + fnName));
+    rows.push(row('Link control', hex2(ctl), (dir ? 'From master' : 'From outstation') + ', ' + (prm ? 'primary' : 'secondary') + ', function ' + fn + ' ' + fnName + (prm ? '. PRM=1 means this station started the link transfer; it does not mean unsolicited.' : '')));
     var dst = b[4] | (b[5] << 8), src = b[6] | (b[7] << 8);
     rows.push(row('Destination', hex2(b[4]) + ' ' + hex2(b[5]), String(dst) + (dst >= 0xFFF0 ? ' (reserved or broadcast)' : '')));
     rows.push(row('Source', hex2(b[6]) + ' ' + hex2(b[7]), String(src) + (src >= 0xFFF0 ? ' (reserved)' : '')));
@@ -875,6 +875,9 @@
       var ac = user[1], af = user[2];
       rows.push(row('App control', hex2(ac), 'FIR=' + ((ac >> 7) & 1) + ' FIN=' + ((ac >> 6) & 1) + ' CON=' + ((ac >> 5) & 1) + ' UNS=' + ((ac >> 4) & 1) + ' SEQ=' + (ac & 15)));
       rows.push(row('Function', hex2(af), (APP_FC[af] || 'Unknown') + ' (0x' + hex2(af) + ')'));
+      if (prm && !dir && af === 129) rows.push(row('Link vs application', '', 'Solicited response: outstations send even normal replies as primary frames (control 0x44, unconfirmed user data). The application function 0x81 shows it answers a master request; unsolicited would be 0x82 with UNS set.'));
+      if (prm && !dir && af === 130) rows.push(row('Link vs application', '', 'Unsolicited response: sent by the outstation without a request (function 0x82, UNS bit set in the application control byte).'));
+      if (prm && dir && af !== 129 && af !== 130) rows.push(row('Link vs application', '', 'Master request in a primary frame (control 0xC4, unconfirmed user data); the outstation answers with a response in its own primary frame.'));
       var p = 3;
       if ((af === 129 || af === 130) && user.length >= 5) {
         rows.push(row('IIN', hex2(user[3]) + ' ' + hex2(user[4]), (iinList(user[3], user[4]).map(function (f) { return f.text; }).join('; ')) || 'No indications set'));
