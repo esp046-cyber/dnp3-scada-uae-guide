@@ -144,6 +144,197 @@
     return { id: i + 1, cat: tags[0], tags: tags, sev: r[1], title: r[2], body: r[3], field: r[4], cmd: r[5] };
   });
 
+  // ---------- commissioning stages ----------
+  var STAGES = [
+    { n: 1, short: 'Physical & heat', title: 'Stage 1: RS-485 / Fibre Physical Layer and Desert Heat Derating', desc: 'Cable, termination, grounding, fibre and kiosk temperature. Fix these first; nothing above them is reliable until they are right.' },
+    { n: 2, short: 'Addressing & link', title: 'Stage 2: Addressing, Handshakes and Link Setup', desc: 'Link addresses, restart and time handshakes, and getting the first clean response.' },
+    { n: 3, short: 'Polling & deadband', title: 'Stage 3: Class Polling and Deadband Optimisation', desc: 'Scan rates, event classes, unsolicited reporting, analogue variations and deadbands.' },
+    { n: 4, short: 'SBO & breakers', title: 'Stage 4: SBO Control Relays and Breaker Tripping', desc: 'Select-before-operate sequencing, CROB codes, pulse timing and local/remote interlocks.' },
+    { n: 5, short: 'Hex diagnostics', title: 'Stage 5: Live Hex Trace Diagnostics (Wireshark / Port Sniffer)', desc: 'Capturing traffic, reading headers, CRCs, IIN bits and spotting truncated or duplicated frames.' }
+  ];
+
+  // k: 'hex' builds a valid frame with correct CRCs at runtime ([ctrl, dst, src, userBytes], m = 'badcrc' | 'trunc');
+  //    k: 'iin' fills the IIN decoder. All addresses: master 1, outstation 10.
+  var SCEN = [
+    { s: 1, sev: 'C', tags: ['Serial', 'Troubleshooting', 'HexAnalysis'],
+      t: 'Long RS-485 run shows CRC failures and random drops',
+      site: '11 kV ring main unit at Jebel Ali, 800 m of twisted pair to the control building, 9600 baud 8N1, RTU in a sealed kiosk.',
+      sym: 'Link works for minutes, then polls time out. The sniffer shows frames starting 05 64 but data-block CRCs failing. Worse when nearby pumps start.',
+      ex: [{ l: 'Class 0 request with a corrupted data byte (data-block CRC fails)', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC0, 0x01, 0x3C, 0x01, 0x06]], m: 'badcrc', n: 'The header CRC is fine, the data CRC is not: noise corrupted the payload, so check wiring before software.' }],
+      params: ['Termination: 120 ohm at the two physical ends only', 'Bias: 1 pair of 560 ohm resistors at the master side only (check device manual)', 'Cable: shielded twisted pair, shield earthed at one end', 'Serial: 9600 8N1 on every node'],
+      fix: ['Power off the bus and measure about 60 ohm between A and B (two 120 ohm in parallel).', 'Remove any 120 ohm resistor fitted on middle drops.', 'Check idle differential is 200 mV or more with a multimeter or scope.', 'Separate the comms cable from motor and power cables by 30 cm or more.', 'If errors persist, replace the run with fibre or fit isolated converters.'] },
+
+    { s: 1, sev: 'C', tags: ['Environment', 'DEWA', 'Troubleshooting'],
+      t: 'RTU restarts every afternoon in a sun-baked kiosk',
+      site: 'Outdoor RMR kiosk in Dubai in July, +50 C ambient, direct sun on the roof, no sunshield, 24 V DC PSU and battery inside.',
+      sym: 'Communication drops 14:00-17:00 then returns. Master shows Device Restart (IIN1.7) after each drop. Logs show restarts only in the hottest hours.',
+      ex: [{ l: 'IIN after the restart', k: 'iin', v: '80 00', n: 'IIN1.7 Device Restart: the RTU rebooted. Repeats mean power or thermal stress, not a protocol fault.' }],
+      params: ['Kiosk internal temperature point: g30v1 (analogue input), alarm at 60 C', 'Deadband 2 percent', 'PSU: check datasheet derating above 50-60 C', 'Battery: temperature-compensated charging'],
+      fix: ['Log the internal temperature with a data logger or an analogue point for 48 hours.', 'Compare against the RTU and PSU rated temperature and derating curve.', 'Fit a sunshield or double-skin roof and light-coloured paint.', 'Replace PSU or RTU with a wide-temperature type if the margin is negative.', 'After the fix, write g80 v1 index 7 to 0 to clear Device Restart and watch for recurrence.'] },
+
+    { s: 1, sev: 'H', tags: ['Environment', 'DEWA', 'Serial'],
+      t: 'Salt air corrodes terminals at a creek-side kiosk',
+      site: 'Kiosk near Dubai Creek (Deira), standard IP54 enclosure, uncoated boards, brass glands, high humidity every night.',
+      sym: 'Terminals turn green, contact resistance rises, comms becomes intermittent. RTU reports hardware trouble.',
+      ex: [{ l: 'Device Trouble indication', k: 'iin', v: '40 00', n: 'IIN1.6 Device Trouble: the RTU is reporting an internal fault. Read vendor diagnostics next.' }],
+      params: ['Enclosure: IP66 / NEMA 4X', 'Fixings and glands: 316L stainless', 'PCB: conformal coat to IPC-CC-830', 'Heater with thermostat to stop condensation'],
+      fix: ['Replace the enclosure with an IP66 or NEMA 4X unit with stainless hardware.', 'Clean corroded terminals and fit ferrules.', 'Apply conformal coating to the PCBs, masking connectors and heat sinks.', 'Add a thermostat heater and breather to stop night-time condensation.', 'Inspect every 6 months and log the findings.'] },
+
+    { s: 1, sev: 'H', tags: ['Serial', 'Troubleshooting', 'DEWA'],
+      t: 'Ground potential difference between switchyard and control room',
+      site: '132/11 kV substation. RTU in the switchyard marshalling kiosk, master in the control room, RS-485 cable earthed at both ends.',
+      sym: 'CRC failures appear in bursts during switching operations and fault events. Quiet otherwise.',
+      ex: [{ l: 'Burst error: payload CRC fails, header intact', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x00, 0x00]], m: 'badcrc', n: 'An outstation response whose data block fails CRC during a switching burst.' }],
+      params: ['Measure AC and DC volts between the two earth points', 'Shield earthed at one end only', 'Fibre or isolated RS-485 between buildings', 'Surge protection on signal pairs'],
+      fix: ['Measure voltage between the two earth bars during normal load and a switching event.', 'Lift the shield at one end.', 'Fit fibre transceivers or galvanically isolated repeaters between buildings.', 'Fit signal surge arresters and bond them to the local earth.', 'Re-test during the next switching operation.'] },
+
+    { s: 2, sev: 'C', tags: ['Protocol', 'Troubleshooting', 'HexAnalysis'],
+      t: 'No response: master and RTU link addresses disagree',
+      site: 'First energisation of a new 11 kV RTU. Master configured as address 1, RTU as 10. Vendor sheet lists addresses in hex.',
+      sym: 'The master sends polls and the RTU stays silent. The sniffer shows the request but no reply. Sometimes the RTU address was typed as 0A in a decimal field.',
+      ex: [{ l: 'Correct integrity request, master 1 to outstation 10', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC0, 0x01, 0x3C, 0x01, 0x06]], n: 'Destination 0A 00 and source 01 00 are little-endian: 10 and 1.' }, { l: 'Same request with swapped addresses', k: 'hex', f: [0xC4, 1, 10, [0xC0, 0xC0, 0x01, 0x3C, 0x01, 0x06]], n: 'Destination is 1: the RTU ignores it because it is not its own address.' }],
+      params: ['Master link address: 1 (decimal)', 'Outstation link address: 10 (decimal, 0A 00 on the wire)', 'Never use 65520-65535 (reserved)', 'Self-address / unconfirmed link: disabled unless specified'],
+      fix: ['Write down master and RTU addresses in decimal on the point list.', 'Decode the destination bytes in the sniffer as little-endian.', 'Check the RTU accepts the master source address if address filtering is on.', 'Retry with a known-good request and confirm the RTU replies.'] },
+
+    { s: 2, sev: 'C', tags: ['Protocol', 'Troubleshooting', 'Ethernet'],
+      t: 'Duplicate master address causes ghost responses',
+      site: 'Backup SCADA front-end brought online at a district cooling plant with the same DNP3 source address as the primary.',
+      sym: 'RTU replies reach both masters. Operators see duplicate events and occasional repeated commands.',
+      ex: [{ l: 'RTU response addressed to master 1', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x00, 0x00]], n: 'Both masters answer to source address 1, so each can consume the other\'s response.' }],
+      params: ['Primary master address: 1', 'Backup master address: 2', 'RTU: accept both, unsolicited destination = primary'],
+      fix: ['List every master and its DNP3 source address.', 'Assign each master a unique address.', 'Configure the RTU to accept both and to send unsolicited reports to one master.', 'Confirm with a capture that each response goes to a single master.'] },
+
+    { s: 2, sev: 'M', tags: ['Protocol', 'Troubleshooting', 'HexAnalysis'],
+      t: 'Device Restart indication will not clear',
+      site: 'RTU power-cycled during SAT. Master connects and every response carries Device Restart.',
+      sym: 'IIN1.7 is set in every response. The master never clears it, so some masters keep re-initialising.',
+      ex: [{ l: 'Response with Device Restart set', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x80, 0x00]], n: 'IIN1 = 80 means Device Restart.' }, { l: 'Master write that clears it (g80 v1 index 7 = 0)', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC1, 0x02, 0x50, 0x01, 0x00, 0x07, 0x07, 0x00]], n: 'Function 0x02 Write, object 80 var 1, range 7 to 7, value 0.' }],
+      params: ['Master: clear Device Restart after the startup integrity poll', 'RTU: DEVICE_RESTART flag auto-clear = off'],
+      fix: ['Complete the startup integrity poll first.', 'Send the g80 v1 write to index 7 with value 0.', 'Confirm the next response no longer shows IIN1.7.', 'If it returns, investigate power or watchdog resets on the RTU.'] },
+
+    { s: 2, sev: 'H', tags: ['Protocol', 'DEWA'],
+      t: 'Need Time stays set because time was sent in local time',
+      site: 'Master sends time every 30 minutes. Event timestamps in the historian are 4 hours out.',
+      sym: 'IIN1.4 (Need Time) keeps returning. Events carry the wrong hour.',
+      ex: [{ l: 'IIN with Need Time set', k: 'iin', v: '10 00', n: 'IIN1.4 Need Time: the RTU wants a time write.' }],
+      params: ['Time source: UTC (the UAE is UTC+4, no daylight saving)', 'Time sync: on Need Time and every 30 minutes', 'Delay Measurement (FC 0x17): on for radio or 9600 baud links'],
+      fix: ['Configure the master to send UTC, not GST.', 'Enable Delay Measurement on slow links.', 'Prefer NTP or GPS at the RTU where available.', 'Check the next events against a reference clock.'] },
+
+    { s: 3, sev: 'C', tags: ['Protocol', 'Serial', 'Troubleshooting'],
+      t: 'Link drops under Class 0 flooding',
+      site: '11 kV RMR kiosk in Jebel Ali on a 9600 baud serial modem, 500-point RTU.',
+      sym: 'Class 0 polled every 2 seconds. The serial queue fills, the RTU drops requests, and event buffer overflow appears (IIN2.3, not IIN1.3).',
+      ex: [{ l: 'Class 0 request (the flooding poll)', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC0, 0x01, 0x3C, 0x01, 0x06]], n: 'Function 0x01 Read, group 60 var 1 qualifier 06 = all Class 0 data.' }, { l: 'Class 1/2/3 event poll (the replacement)', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC1, 0x01, 0x3C, 0x02, 0x06, 0x3C, 0x03, 0x06, 0x3C, 0x04, 0x06]], n: 'Groups 60 var 2, 3, 4: the three event classes.' }, { l: 'Response flagging Event Buffer Overflow', k: 'iin', v: '00 08', n: 'IIN2.3 Event Buffer Overflow.' }],
+      params: ['Class 0 scan: 900 s', 'Class 1 / 2 / 3 event scan: 2 s', 'Response timeout: 5 s', 'Serial: 9600 8N1'],
+      fix: ['Set the Class 0 integrity poll to 900 s.', 'Poll Class 1, 2 and 3 events every 2 s.', 'Raise analogue deadbands so fewer events are created.', 'Check the response time of a Class 0 poll on a capture; keep the scan interval above it.', 'Run one Class 0 poll after changes to resync.'] },
+
+    { s: 3, sev: 'H', tags: ['Protocol', 'Troubleshooting'],
+      t: 'Event buffer overflow after a storm of analogue changes',
+      site: 'Feeder RTU with noisy CT inputs, analogue deadband left at 0 on 40 MW and kV points.',
+      sym: 'During a fault, thousands of analogue events queue. IIN2.3 appears and the master loses event order.',
+      ex: [{ l: 'Overflow indication', k: 'iin', v: '00 08', n: 'IIN2.3 Event Buffer Overflow.' }],
+      params: ['Deadband MW / MVAr: 1 percent of span', 'Deadband kV: 0.5 percent of span', 'Frequency deadband: 0.02 Hz', 'Event buffer: increase if the RTU allows'],
+      fix: ['Read the RTU event buffer size and the configured deadbands.', 'Set deadbands as above.', 'Shorten the event poll interval during faults if the link allows.', 'After the storm, run a Class 0 integrity poll to resync.'] },
+
+    { s: 3, sev: 'H', tags: ['Protocol', 'Serial'],
+      t: 'Unsolicited reports collide on a shared RS-485 bus',
+      site: 'Four 11 kV RTUs on one half-duplex RS-485 multi-drop line, unsolicited enabled on all.',
+      sym: 'During a feeder trip all four RTUs report at once; frames overlap and CRC errors appear. Events are lost.',
+      ex: [{ l: 'Enable Unsolicited request for classes 1, 2, 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC0, 0x14, 0x3C, 0x02, 0x06, 0x3C, 0x03, 0x06, 0x3C, 0x04, 0x06]], n: 'Function 0x14 (20) Enable Unsolicited. Do not send this on a shared half-duplex line.' }],
+      params: ['Unsolicited: disabled on shared serial', 'Event poll: 2-5 s round-robin', 'Class 0 integrity: 30-60 min'],
+      fix: ['Disable unsolicited on all outstations on the shared bus.', 'Poll each RTU in turn for Class 1, 2, 3 events.', 'Keep a slow integrity poll.', 'Use unsolicited only on dedicated or full-duplex links.'] },
+
+    { s: 3, sev: 'M', tags: ['Protocol', 'HexAnalysis'],
+      t: '16-bit analogue overflow shows negative power values',
+      site: '132 kV feeder reporting MW scaled by 100; raw values exceed 32767.',
+      sym: 'The master shows wrap-around or negative MW when the load rises. The RTU is sending g30 var 2 (16-bit).',
+      ex: [{ l: 'Read all g30 var 1 (32-bit with flag)', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC0, 0x01, 0x1E, 0x01, 0x06]], n: 'Group 30 (0x1E) variation 1: 32-bit analogue input with flag.' }],
+      params: ['Analogue variation: g30v1 (32-bit) or g30v5 (float)', 'Scale: set so raw values stay below 32767 if 16-bit must be used', 'Event variation: g32v3 (32-bit with time)'],
+      fix: ['Check the variation the RTU returns for the point.', 'Switch to g30v1 or g30v5 and update the master scaling.', 'Compare master value with the relay HMI at three load levels.', 'Record the scale and variation in the point list.'] },
+
+    { s: 4, sev: 'C', tags: ['Protocol', 'DEWA', 'HexAnalysis'],
+      t: 'SBO Operate rejected with status 2 (No Select)',
+      site: '11 kV breaker CB-03 at a DEWA substation, master issues Select then Operate over serial.',
+      sym: 'Select returns success but Operate returns status 2. The breaker does not move.',
+      ex: [{ l: 'Select CROB: close pulse on index 5, app sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x03 Select, g12 v1, index 5, control 0x11 (pulse close), count 1, on-time 100 ms.' }, { l: 'Wrong Operate: same sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Application sequence must be Select + 1. The RTU treats this as unmatched.' }, { l: 'Correct Operate: sequence 4', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x04 Operate with identical objects and sequence 4.' }],
+      params: ['Operate sequence: Select sequence + 1', 'Operate objects: identical to Select', 'Select timeout: 10 s', 'Control model: SBO for breakers'],
+      fix: ['Capture the Select and Operate and compare the application control bytes.', 'Make sure the Operate repeats index, control code, count and times exactly.', 'Check no other poll was sent between Select and Operate by the same master.', 'Re-test on a spare or isolated breaker.'] },
+
+    { s: 4, sev: 'H', tags: ['Protocol', 'DEWA', 'Troubleshooting'],
+      t: 'Breaker command accepted but the breaker does not move',
+      site: 'Spring-charged breaker needs a close coil pulse of at least 200 ms. Master uses 100 ms.',
+      sym: 'The RTU returns success, the SCADA shows the command executed, the breaker stays open.',
+      ex: [{ l: 'Operate with 100 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 64 00 00 00 = 100 ms.' }, { l: 'Operate with 300 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 2C 01 00 00 = 300 ms.' }],
+      params: ['Close pulse on-time: 300 ms', 'Trip pulse on-time: 300 ms', 'Control code: 0x11 close, 0x21 trip', 'Verify with breaker status point change'],
+      fix: ['Read the breaker or relay manual for the minimum pulse.', 'Set the on-time in the master or RTU CROB configuration.', 'Test close and trip with the breaker isolated.', 'Confirm the breaker status binary changes within 2 seconds.'] },
+
+    { s: 4, sev: 'H', tags: ['Protocol', 'Troubleshooting', 'DEWA'],
+      t: 'Control rejected with status 7: panel is in Local',
+      site: 'Remote trip of a ring main unit on a night shift. Local/Remote switch left in Local after maintenance.',
+      sym: 'Select or Operate returns status 7 (Local). IIN shows Local Control.',
+      ex: [{ l: 'IIN with Local Control set', k: 'iin', v: '20 00', n: 'IIN1.5 Local Control: outputs are under local control.' }],
+      params: ['Local/Remote status point: binary input, Class 1', 'Master interlock: block commands when Local'],
+      fix: ['Check the Local/Remote switch at the panel and the status point on the master.', 'Return the switch to Remote only after the work permit is closed.', 'Add an interlock in the master so commands are blocked in Local.', 'Retest with a safe command.'] },
+
+    { s: 4, sev: 'M', tags: ['Protocol', 'DEWA'],
+      t: 'Operate returns status 1 (Timeout) after operator delay',
+      site: 'Operator selects a breaker and waits for a second approval before confirming.',
+      sym: 'Operate fails with status 1. The Select was accepted 20 seconds earlier.',
+      ex: [{ l: 'Select used before the delay', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x21, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Select of a pulse trip (0x21). It expires after the select timeout.' }],
+      params: ['Select timeout: 10 s', 'Operator confirmation window: less than the select timeout', 'Send Select and Operate back to back'],
+      fix: ['Get the RTU select timeout from its manual.', 'Make the master send Select only after final operator approval.', 'Retry; do not raise the timeout above what the utility allows.'] },
+
+    { s: 5, sev: 'H', tags: ['Serial', 'HexAnalysis', 'Troubleshooting'],
+      t: 'Capture traffic with a USB RS-485 sniffer',
+      site: 'Serial RTU on a multi-drop line in a control room. No port mirroring available.',
+      sym: 'You need to see what the master and RTU actually say.',
+      ex: [{ l: 'Typical response seen on the wire', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x00, 0x00]], n: 'Starts 05 64, control 44 (outstation to master), function 0x81 Response, IIN 00 00.' }],
+      params: ['Sniffer: same baud, parity and stop bits as the bus', 'Connect A and B in parallel (high impedance, no termination)', 'Save raw hex to a text file'],
+      fix: ['Set the same serial settings as the bus.', 'Clip A and B in parallel without adding termination.', 'Capture a poll and its reply.', 'Paste the hex into the inspector above and check the header, CRC and IIN.'] },
+
+    { s: 5, sev: 'H', tags: ['Ethernet', 'HexAnalysis', 'Cybersecurity'],
+      t: 'Wireshark on a mirrored port for TCP port 20000',
+      site: 'DNP3 over TCP between SCADA front end and an RTU through a managed switch.',
+      sym: 'RTU data is stale but the TCP session shows as up.',
+      ex: [{ l: 'Response with Class 1 events and Device Restart', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x82, 0x00]], n: 'IIN1 = 82: Device Restart plus Class 1 events available.' }],
+      params: ['Display filter: dnp3 or tcp.port == 20000', 'SPAN: mirror the RTU port to the laptop port', 'Check TCP retransmissions and keepalives'],
+      fix: ['Mirror the RTU switch port to your laptop.', 'Apply the display filter above.', 'Look for polls without responses, TCP resets and retransmissions.', 'Check IIN bits in each response.'] },
+
+    { s: 5, sev: 'M', tags: ['HexAnalysis', 'Troubleshooting'],
+      t: 'Read a response header: where the IIN bytes sit',
+      site: 'Debugging a master that keeps polling although events are waiting.',
+      sym: 'Class 1 events are flagged but the master does not read them.',
+      ex: [{ l: 'Response with Class 1 events available', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x02, 0x00]], n: 'After function 0x81 come IIN1 and IIN2. 02 in IIN1 means Class 1 events are available.' }, { l: 'The IIN bytes alone', k: 'iin', v: '02 00', n: 'IIN1.1 Class 1 events available.' }],
+      params: ['Event poll: Class 1, 2, 3 every 2-5 s', 'Or trigger an event poll when IIN1.1-1.3 are set'],
+      fix: ['Decode the response above.', 'Check the master reacts to IIN1.1-1.3.', 'Add an event poll if it does not.'] },
+
+    { s: 5, sev: 'H', tags: ['HexAnalysis', 'Troubleshooting', 'Serial'],
+      t: 'Truncated frame: length byte promises more than arrives',
+      site: 'Radio or modem link that drops the tail of long frames.',
+      sym: 'Master reports no valid response. The capture shows a frame that ends early.',
+      ex: [{ l: 'Frame cut short', k: 'hex', f: [0x44, 1, 10, [0xC0, 0xC0, 0x81, 0x00, 0x00]], m: 'trunc', n: 'The length field says more user data than the capture contains.' }],
+      params: ['Modem buffer / flow control: RTS-CTS on', 'Maximum fragment size: match master and RTU', 'Radio turnaround delay: 20-50 ms'],
+      fix: ['Check the length byte against the captured bytes.', 'Enable hardware flow control or increase modem buffer.', 'Reduce the maximum fragment size on both sides.', 'Retest with a large Class 0 poll.'] },
+
+    { s: 5, sev: 'M', tags: ['Protocol', 'HexAnalysis'],
+      t: 'Duplicate events after a lost application confirm',
+      site: 'Class 1 events sent by the RTU; the master confirmation is lost on a noisy link.',
+      sym: 'The same breaker events appear twice in the historian.',
+      ex: [{ l: 'Application Confirm from the master', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC1, 0x00]], n: 'Function 0x00 Confirm. If this is lost, the RTU resends the events.' }],
+      params: ['Application confirm timeout: 5 s', 'Link retries: 1-2', 'Master: de-duplicate by timestamp and point'],
+      fix: ['Capture the poll, response and confirm.', 'Check the confirm is sent and not corrupted.', 'Fix the physical layer first (stage 1).', 'Enable duplicate suppression in the historian.'] }
+  ];
+  SCEN.forEach(function (s, i) { s.id = 1000 + i; });
+
+  function tipStage(t) {
+    if (/SBO|Select|CROB|control|pulse|operate|breaker/i.test(t.title)) return 4;
+    if (t.cat === 'Serial' || t.cat === 'Environment') return 1;
+    if (t.cat === 'HexAnalysis' || t.cat === 'Troubleshooting') return 5;
+    if (t.cat === 'Protocol') return /address|index|time|UTC|restart|fragment|TCP|link/i.test(t.title) ? 2 : 3;
+    return 2;
+  }
+  TIPS.forEach(function (t) { t.stage = tipStage(t); });
+
   // ---------- helpers ----------
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -163,7 +354,7 @@
 
   // ---------- state ----------
   var state = {
-    q: '', tag: 'all', sort: 'default',
+    q: '', tag: 'all', stage: 'all', sort: 'default',
     bookmarks: load('dnp3uae.bookmarks', []),
     checklist: load('dnp3uae.checklist', [])
   };
@@ -194,6 +385,7 @@
 
   // ---------- filtering and rendering ----------
   function matches(t) {
+    if (state.stage !== 'all' && t.stage !== state.stage) return false;
     if (state.tag === 'bookmarks' && state.bookmarks.indexOf(t.id) < 0) return false;
     if (state.tag !== 'all' && state.tag !== 'bookmarks' && t.tags.indexOf(state.tag) < 0) return false;
     if (state.q) {
@@ -219,8 +411,11 @@
     }).join('');
 
     $('grid').innerHTML = html;
-    $('empty').hidden = list.length > 0;
-    $('resultCount').textContent = list.length + ' of ' + TIPS.length + ' tips';
+    var sc = renderScenarios();
+    $('empty').hidden = (list.length + sc) > 0;
+    $('resultCount').textContent = list.length + ' of ' + TIPS.length + ' quick tips';
+    $('scenCount').textContent = sc + ' of ' + SCEN.length;
+    renderStages();
     $('bookmarkCount').textContent = state.bookmarks.length;
     $('checkCount').textContent = state.checklist.length;
   }
@@ -240,11 +435,93 @@
     render();
   }
 
+  // ---------- scenarios ----------
+  function frameHex(ex) {
+    var b = buildFrame(ex.f[0], ex.f[1], ex.f[2], ex.f[3]);
+    if (ex.m === 'badcrc') b[10] ^= 0x01;
+    if (ex.m === 'trunc') b = b.slice(0, b.length - 6);
+    return b.map(hex2).join(' ');
+  }
+
+  function scenMatches(s) {
+    if (state.stage !== 'all' && s.s !== state.stage) return false;
+    if (state.tag === 'bookmarks' && state.bookmarks.indexOf(s.id) < 0) return false;
+    if (state.tag !== 'all' && state.tag !== 'bookmarks' && s.tags.indexOf(state.tag) < 0) return false;
+    if (state.q) {
+      var hay = (s.t + ' ' + s.site + ' ' + s.sym + ' ' + s.params.join(' ') + ' ' + s.fix.join(' ') + ' ' + s.tags.join(' ')).toLowerCase();
+      var words = state.q.toLowerCase().split(/\s+/);
+      for (var i = 0; i < words.length; i++) { if (words[i] && hay.indexOf(words[i]) < 0) return false; }
+    }
+    return true;
+  }
+
+  function scenHTML(s) {
+    var saved = state.bookmarks.indexOf(s.id) >= 0;
+    var inList = state.checklist.some(function (c) { return c.id === s.id; });
+    var idx = SCEN.indexOf(s);
+    var exs = s.ex.map(function (e, j) {
+      var body = e.k === 'hex' ? frameHex(e) : 'IIN1 = ' + e.v.split(' ')[0] + '   IIN2 = ' + (e.v.split(' ')[1] || '00');
+      return '<div class="ex"><div class="ex-l">' + esc(e.l) + '</div><pre class="hexbox mono">' + esc(body) + '</pre>' +
+        '<p class="ex-n">' + esc(e.n) + '</p><div class="btn-row tight">' +
+        '<button type="button" class="btn btn-accent" data-try="' + idx + ':' + j + '">Try example</button>' +
+        (e.k === 'hex' ? '<button type="button" class="btn" data-sc-copy="' + idx + ':' + j + '">Copy hex</button>' : '') + '</div></div>';
+    }).join('');
+    return '<article class="scen sev-' + s.sev + '" data-scen="' + s.id + '">' +
+      '<div class="card-top"><span class="stage-badge">Stage ' + s.s + '</span><span class="sev">' + SEV[s.sev] + '</span>' +
+      '<button type="button" class="bm' + (saved ? ' is-saved' : '') + '" data-bm="' + s.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? 'Remove bookmark' : 'Bookmark scenario') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button></div>' +
+      '<h3>' + esc(s.t) + '</h3>' +
+      '<section class="blk"><h4>Site context</h4><p>' + esc(s.site) + '</p></section>' +
+      '<section class="blk bad"><h4>What goes wrong</h4><p>' + esc(s.sym) + '</p></section>' +
+      '<section class="blk"><h4>Hex example</h4>' + exs + '</section>' +
+      '<section class="blk"><h4>Settings to apply</h4><ul class="params mono">' + s.params.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></section>' +
+      '<section class="blk good"><h4>Fix on site</h4><ol class="fix">' + s.fix.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ol></section>' +
+      '<div class="tags">' + s.tags.map(function (g) { return '<span class="tag">#' + esc(g) + '</span>'; }).join('') + '</div>' +
+      '<div class="btn-row"><button type="button" class="btn" data-sc-check="' + s.id + '">' + (inList ? 'Remove from checklist' : 'Add to checklist') + '</button></div></article>';
+  }
+
+  function renderScenarios() {
+    var list = SCEN.filter(scenMatches);
+    $('scenarios').innerHTML = list.map(scenHTML).join('');
+    return list.length;
+  }
+
+  function renderStages() {
+    var html = '<button type="button" class="stage-btn' + (state.stage === 'all' ? ' is-active' : '') + '" data-stage="all">All stages</button>';
+    STAGES.forEach(function (g) {
+      var n = SCEN.filter(function (s) { return s.s === g.n; }).length;
+      html += '<button type="button" class="stage-btn' + (state.stage === g.n ? ' is-active' : '') + '" data-stage="' + g.n + '"><b>' + g.n + '</b> ' + esc(g.short) + ' <small>' + n + '</small></button>';
+    });
+    $('stages').innerHTML = html;
+    var cur = STAGES.filter(function (g) { return g.n === state.stage; })[0];
+    $('stageDesc').textContent = cur ? cur.title + '. ' + cur.desc : 'Pick a commissioning stage, or browse all scenarios.';
+  }
+
+  function tryExample(idx, j) {
+    var e = SCEN[idx].ex[j];
+    if (e.k === 'iin') {
+      var p = e.v.split(' ');
+      $('iin1').value = p[0]; $('iin2').value = p[1] || '00';
+      decodeIIN();
+      $('iinTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('IIN decoded: scroll up to see the result');
+    } else {
+      $('hexInput').value = frameHex(e);
+      inspectFrame();
+      $('hexTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('Frame loaded into the inspector');
+    }
+  }
+
   // ---------- modal ----------
   var modalFocus = null;
-  function findTip(id) { for (var i = 0; i < TIPS.length; i++) if (TIPS[i].id === id) return TIPS[i]; return null; }
+  function findTip(id) {
+    for (var i = 0; i < TIPS.length; i++) if (TIPS[i].id === id) return TIPS[i];
+    for (var j = 0; j < SCEN.length; j++) if (SCEN[j].id === id) return { id: id, title: SCEN[j].t };
+    return null;
+  }
 
   function openModal(id) {
+    if (id >= 1000) { var el = document.querySelector('[data-scen="' + id + '"]'); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1600); } return; }
     var t = findTip(id);
     if (!t) return;
     var saved = state.bookmarks.indexOf(id) >= 0;
@@ -454,7 +731,7 @@
     $('filters').addEventListener('click', function (e) {
       var b = e.target.closest('.pill'); if (b) setTag(b.getAttribute('data-tag'));
     });
-    $('resetFilters').addEventListener('click', function () { $('search').value = ''; state.q = ''; setTag('all'); });
+    $('resetFilters').addEventListener('click', function () { $('search').value = ''; state.q = ''; state.stage = 'all'; setTag('all'); });
 
     $('grid').addEventListener('click', function (e) {
       var bm = e.target.closest('[data-bm]');
@@ -468,6 +745,22 @@
       }
     });
 
+    $('stages').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-stage]'); if (!b) return;
+      var v = b.getAttribute('data-stage');
+      state.stage = v === 'all' ? 'all' : parseInt(v, 10);
+      render();
+    });
+    $('scenarios').addEventListener('click', function (e) {
+      var bm = e.target.closest('[data-bm]');
+      if (bm) { toggleBookmark(parseInt(bm.getAttribute('data-bm'), 10)); return; }
+      var tr = e.target.closest('[data-try]');
+      if (tr) { var a = tr.getAttribute('data-try').split(':'); tryExample(+a[0], +a[1]); return; }
+      var cp = e.target.closest('[data-sc-copy]');
+      if (cp) { var c = cp.getAttribute('data-sc-copy').split(':'); copyText(frameHex(SCEN[+c[0]].ex[+c[1]]), 'Hex copied'); return; }
+      var ck = e.target.closest('[data-sc-check]');
+      if (ck) toggleChecklist(parseInt(ck.getAttribute('data-sc-check'), 10));
+    });
     $('modal').addEventListener('click', function (e) {
       if (e.target.closest('[data-close]')) { closeModal(); return; }
       var cp = e.target.closest('[data-copy]');
