@@ -8,7 +8,7 @@
     { "group": 2,  "variation": 2, "name": "Binary input event, absolute time", "type": "event", "note": "Use for SOE" },
     { "group": 2,  "variation": 3, "name": "Binary input event, relative time", "type": "event", "note": "Needs g51 CTO" },
     { "group": 10, "variation": 2, "name": "Binary output status with flags", "type": "static" },
-    { "group": 12, "variation": 1, "name": "Control relay output block (CROB)", "type": "control", "note": "0x11 pulse close, 0x21 pulse trip, 0x03 latch on, 0x04 latch off" },
+    { "group": 12, "variation": 1, "name": "Control relay output block (CROB)", "type": "control", "note": "0x41 close pulse on, 0x81 trip pulse on, 0x03 latch on, 0x04 latch off" },
     { "group": 20, "variation": 1, "name": "32-bit counter with flag",        "type": "static" },
     { "group": 21, "variation": 1, "name": "32-bit frozen counter with flag", "type": "static", "note": "Use for energy and billing" },
     { "group": 22, "variation": 1, "name": "32-bit counter event, no time",   "type": "event" },
