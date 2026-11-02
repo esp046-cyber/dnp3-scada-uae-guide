@@ -175,9 +175,14 @@
         <button class="modal-close" type="button" data-close-drawer aria-label="Close checklist">&times;</button>
       </div>
       <p class="hint">Add steps from any tip. Progress is saved on this device.</p>
+      <label class="lbl" for="siteName">Site / feeder</label>
+      <input id="siteName" type="text" maxlength="80" placeholder="e.g. Jebel Ali 11 kV RMR-14" autocomplete="off">
+      <label class="lbl" for="siteNotes">Site notes (included in the summary)</label>
+      <textarea id="siteNotes" rows="3" maxlength="600" placeholder="e.g. Baud 9600 8N1, RTU address 10, term. fitted at both ends"></textarea>
       <ul id="checklistItems" class="check-list"></ul>
       <div class="btn-row">
-        <button id="checklistCopy" class="btn btn-accent" type="button">Copy checklist</button>
+        <button id="checklistSummary" class="btn btn-accent" type="button">Copy Commissioning Summary</button>
+        <button id="checklistCopy" class="btn" type="button">Copy checklist</button>
         <button id="checklistReset" class="btn btn-ghost" type="button">Clear all</button>
       </div>
     </div>

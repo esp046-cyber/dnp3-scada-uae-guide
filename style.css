@@ -304,3 +304,24 @@ html { scroll-padding-top: 11rem; }
   .filters { margin-top: 6px; }
   .toolbar { margin-top: 6px; }
 }
+
+/* ---------- object cheat sheet: scrollable table, no vertical text ribbons ---------- */
+.modal-card .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.obj-table { min-width: 680px; }
+.obj-table th, .obj-table td { white-space: nowrap; overflow-wrap: normal; word-break: normal; padding: .5rem .75rem; }
+.obj-table td:nth-child(3), .obj-table td:nth-child(4) { white-space: normal; min-width: 150px; }
+.obj-table td.mono { word-break: normal; }
+.obj-table tr.grp td, .obj-table tr.note td { white-space: normal; min-width: 0; }
+
+.sub2 { margin: 1rem 0 .5rem; font-size: 1rem; color: var(--cyan); }
+.presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 10px; }
+.preset { background: rgba(2,6,23,.5); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.preset h3 { margin: 0 0 .3rem; font-size: .92rem; }
+.preset p { margin: 0 0 .5rem; font-size: .82rem; color: #cbd5e1; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.chip-wrap { display: inline-flex; flex-direction: column; gap: 2px; }
+.chip-wrap small { font-size: .7rem; color: var(--muted); }
+
+.lbl { display: block; margin: .6rem 0 .25rem; font-size: .8rem; color: var(--muted); }
+.drawer-card textarea, .drawer-card input[type="text"] { font-size: 16px; }
+#checklist .btn-row .btn { flex: 1 1 100%; }

@@ -26,9 +26,9 @@
     ["Protocol","H","Use frozen counters for energy and billing","Static counters keep running. Send Immediate Freeze (FC 0x07) on g20, then read g21 so every device reports the same instant.","","C0 07 14 01 06"],
     ["Protocol","L","Handle counter rollover","32-bit counters wrap at 4,294,967,295. The master must calculate differences modulo 2^32 for energy totals.","",""],
     ["Protocol","C","Use SBO for breakers and isolators","Select-Before-Operate validates and arms the target before execution. Keep Direct Operate for low-risk points such as fans or lamps.","DEWA 132/11 kV control normally requires SBO.",""],
-    ["Protocol,HexAnalysis","H","SBO sequence rules","Operate must repeat the Select objects exactly (index, control code, count, times) with application sequence = Select sequence + 1, inside the select timeout.","","03 0C 01 17 01 05 11 01 64 00 00 00 00 00 00 00 00"],
+    ["Protocol,HexAnalysis","H","SBO sequence rules","Operate must repeat the Select objects exactly (index, control code, count, times) with application sequence = Select sequence + 1, inside the select timeout.","","03 0C 01 17 01 05 41 01 64 00 00 00 00 00 00 00 00"],
     ["Protocol","H","Align the select timeout","Typical select timeout is 5-10 s. If the operator is slower, Operate returns status 1 (timeout). Set the same value in master and RTU.","",""],
-    ["Protocol","M","Know your CROB control codes","Pulse close 0x11, pulse trip 0x21, latch on 0x03, latch off 0x04. Many relays accept only specific codes, so configure per relay type.","",""],
+    ["Protocol","M","Know your CROB control codes","Pulse close 0x41, pulse trip 0x81, latch on 0x03, latch off 0x04. Many relays accept only specific codes, so configure per relay type.","",""],
     ["Protocol,Troubleshooting","H","Read control status codes","0 Success, 1 Timeout, 2 No select, 3 Format error, 4 Not supported, 7 Local, 8 Too many operations. Status 7 means the Local/Remote switch is in Local.","",""],
     ["Protocol","M","Match pulse widths to the breaker coil","Typical 100-500 ms close/trip pulses. A pulse shorter than the coil needs gives a successful response but no operation.","",""],
     ["Protocol,Troubleshooting","H","Send time in UTC only","DNP3 time is 48-bit milliseconds since 1970 UTC. The UAE is UTC+4 with no daylight saving. Never send local time.","",""],
@@ -256,7 +256,7 @@
       t: 'SBO Operate rejected with status 2 (No Select)',
       site: '11 kV breaker CB-03 at a DEWA substation, master issues Select then Operate over serial.',
       sym: 'Select returns success but Operate returns status 2. The breaker does not move.',
-      ex: [{ l: 'Select CROB: close pulse on index 5, app sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x03 Select, g12 v1, index 5, control 0x11 (pulse close), count 1, on-time 100 ms.' }, { l: 'Wrong Operate: same sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Application sequence must be Select + 1. The RTU treats this as unmatched.' }, { l: 'Correct Operate: sequence 4', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x04 Operate with identical objects and sequence 4.' }],
+      ex: [{ l: 'Select CROB: close pulse on index 5, app sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x41, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x03 Select, g12 v1, index 5, control 0x41 (pulse close), count 1, on-time 100 ms.' }, { l: 'Wrong Operate: same sequence 3', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x41, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Application sequence must be Select + 1. The RTU treats this as unmatched.' }, { l: 'Correct Operate: sequence 4', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x41, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Function 0x04 Operate with identical objects and sequence 4.' }],
       params: ['Operate sequence: Select sequence + 1', 'Operate objects: identical to Select', 'Select timeout: 10 s', 'Control model: SBO for breakers'],
       fix: ['Capture the Select and Operate and compare the application control bytes.', 'Make sure the Operate repeats index, control code, count and times exactly.', 'Check no other poll was sent between Select and Operate by the same master.', 'Re-test on a spare or isolated breaker.'] },
 
@@ -264,8 +264,8 @@
       t: 'Breaker command accepted but the breaker does not move',
       site: 'Spring-charged breaker needs a close coil pulse of at least 200 ms. Master uses 100 ms.',
       sym: 'The RTU returns success, the SCADA shows the command executed, the breaker stays open.',
-      ex: [{ l: 'Operate with 100 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 64 00 00 00 = 100 ms.' }, { l: 'Operate with 300 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x11, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 2C 01 00 00 = 300 ms.' }],
-      params: ['Close pulse on-time: 300 ms', 'Trip pulse on-time: 300 ms', 'Control code: 0x11 close, 0x21 trip', 'Verify with breaker status point change'],
+      ex: [{ l: 'Operate with 100 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x41, 0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 64 00 00 00 = 100 ms.' }, { l: 'Operate with 300 ms on-time', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC4, 0x04, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x41, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'On-time 2C 01 00 00 = 300 ms.' }],
+      params: ['Close pulse on-time: 300 ms', 'Trip pulse on-time: 300 ms', 'Control code: 0x41 close, 0x81 trip', 'Verify with breaker status point change'],
       fix: ['Read the breaker or relay manual for the minimum pulse.', 'Set the on-time in the master or RTU CROB configuration.', 'Test close and trip with the breaker isolated.', 'Confirm the breaker status binary changes within 2 seconds.'] },
 
     { s: 4, sev: 'H', tags: ['Protocol', 'Troubleshooting', 'DEWA'],
@@ -280,7 +280,7 @@
       t: 'Operate returns status 1 (Timeout) after operator delay',
       site: 'Operator selects a breaker and waits for a second approval before confirming.',
       sym: 'Operate fails with status 1. The Select was accepted 20 seconds earlier.',
-      ex: [{ l: 'Select used before the delay', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x21, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Select of a pulse trip (0x21). It expires after the select timeout.' }],
+      ex: [{ l: 'Select used before the delay', k: 'hex', f: [0xC4, 10, 1, [0xC0, 0xC3, 0x03, 0x0C, 0x01, 0x17, 0x01, 0x05, 0x81, 0x01, 0x2C, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]], n: 'Select of a pulse trip (0x81). It expires after the select timeout.' }],
       params: ['Select timeout: 10 s', 'Operator confirmation window: less than the select timeout', 'Send Select and Operate back to back'],
       fix: ['Get the RTU select timeout from its manual.', 'Make the master send Select only after final operator approval.', 'Retry; do not raise the timeout above what the utility allows.'] },
 
@@ -346,10 +346,10 @@
     { where: ['RTU point configuration: analogue deadband per point', 'RTU: event buffer size / overflow behaviour'], resp: [OK] },
     { where: ['RTU: unsolicited response enable per class', 'Master: unsolicited handling and scan list'], resp: [OK] },
     { where: ['RTU point configuration: static and event variation per analogue point', 'Master point table: raw scale and engineering range'], resp: [OKD] },
-    { where: ['Master control settings: control model SBO and sequencing', 'RTU: control model per point'], resp: [{ l: 'Expected Select response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)], n: 'The RTU echoes the CROB. The last byte is the status: 00 = Success.' }, { l: 'Expected Operate response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(4, 0x11, 0x64, 0x00, 0)], n: 'Sequence 4, status 00 Success.' }] },
-    { where: ['RTU or relay: minimum close/trip pulse width', 'Master or RTU: CROB on-time per control point'], resp: [{ l: 'Expected Operate response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(4, 0x11, 0x2C, 0x01, 0)], n: 'On-time 2C 01 = 300 ms echoed, status 00.' }] },
-    { where: ['Panel Local/Remote switch', 'Master: interlock using the Local/Remote status point'], resp: [{ l: 'Expected Select response after switching to Remote', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)], n: 'Status 00 Success.' }] },
-    { where: ['Master control settings: select timeout', 'RTU: select timeout'], resp: [{ l: 'Expected Select response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x21, 0x2C, 0x01, 0)], n: 'Status 00 Success.' }] },
+    { where: ['Master control settings: control model SBO and sequencing', 'RTU: control model per point'], resp: [{ l: 'Expected Select response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x41, 0x64, 0x00, 0)], n: 'The RTU echoes the CROB. The last byte is the status: 00 = Success.' }, { l: 'Expected Operate response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(4, 0x41, 0x64, 0x00, 0)], n: 'Sequence 4, status 00 Success.' }] },
+    { where: ['RTU or relay: minimum close/trip pulse width', 'Master or RTU: CROB on-time per control point'], resp: [{ l: 'Expected Operate response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(4, 0x41, 0x2C, 0x01, 0)], n: 'On-time 2C 01 = 300 ms echoed, status 00.' }] },
+    { where: ['Panel Local/Remote switch', 'Master: interlock using the Local/Remote status point'], resp: [{ l: 'Expected Select response after switching to Remote', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x41, 0x64, 0x00, 0)], n: 'Status 00 Success.' }] },
+    { where: ['Master control settings: select timeout', 'RTU: select timeout'], resp: [{ l: 'Expected Select response, status 0', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x81, 0x2C, 0x01, 0)], n: 'Status 00 Success.' }] },
     { where: ['Sniffer software: baud, parity and stop bits'], resp: [OK] },
     { where: ['Switch: SPAN / port mirror configuration', 'Wireshark: display filter bar'], resp: [OK] },
     { where: ['Master: event poll triggered by IIN1.1-1.3'], resp: [OK] },
@@ -456,17 +456,17 @@
     { s: 4, sev: 'C', tags: ['Protocol', 'DEWA', 'Cybersecurity'], t: 'Direct Operate used on a breaker instead of SBO',
       site: 'Commissioning engineer configured a feeder breaker as Direct Operate to simplify testing.',
       sym: 'The command executes without an arming step. Utility policy requires SBO on breakers.',
-      ex: [{ l: 'Direct Operate frame (function 0x05)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x05, 3, 0x11, 0x64, 0x00)], n: 'Function 0x05 executes immediately. For breakers use Select (0x03) then Operate (0x04).' }],
+      ex: [{ l: 'Direct Operate frame (function 0x05)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x05, 3, 0x41, 0x64, 0x00)], n: 'Function 0x05 executes immediately. For breakers use Select (0x03) then Operate (0x04).' }],
       params: ['Control model: SBO for breakers and isolators', 'Direct Operate: only for non-critical points'],
       fix: ['Change the control model to SBO in both master and RTU.', 'Retest with Select, then Operate.', 'Record the control model in the point list.'],
-      where: ['Master point table: control type', 'RTU: control model per output'], resp: [{ l: 'Expected Select response', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)], n: 'Status 00.' }] },
+      where: ['Master point table: control type', 'RTU: control model per output'], resp: [{ l: 'Expected Select response', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x41, 0x64, 0x00, 0)], n: 'Status 00.' }] },
     { s: 4, sev: 'H', tags: ['Protocol', 'Troubleshooting'], t: 'Control status 4 (Not Supported): wrong control code',
       site: 'Relay accepts pulse commands only; master sends latch on (0x03).',
       sym: 'Select returns status 4. No operation.',
-      ex: [{ l: 'Select with latch on (0x03)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x03, 3, 0x03, 0x64, 0x00)], n: 'Control code 03 = latch on.' }, { l: 'Select with pulse close (0x11)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x03, 3, 0x11, 0x64, 0x00)], n: 'Control code 11 = pulse close.' }, { l: 'Expected rejection', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x03, 0x64, 0x00, 4)], n: 'Last byte 04 = Not Supported.' }],
-      params: ['Close: 0x11 pulse close', 'Trip: 0x21 pulse trip', 'Latch codes: only if the relay supports them'],
+      ex: [{ l: 'Select with latch on (0x03)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x03, 3, 0x03, 0x64, 0x00)], n: 'Control code 03 = latch on.' }, { l: 'Select with pulse close (0x41)', k: 'hex', f: [0xC4, 10, 1, CROBQ(0x03, 3, 0x41, 0x64, 0x00)], n: 'Control code 11 = pulse close.' }, { l: 'Expected rejection', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x03, 0x64, 0x00, 4)], n: 'Last byte 04 = Not Supported.' }],
+      params: ['Close: 0x41 pulse close', 'Trip: 0x81 pulse trip', 'Latch codes: only if the relay supports them'],
       fix: ['Check the relay manual for supported codes.', 'Set pulse close and pulse trip in the master.', 'Retest on an isolated breaker.'],
-      where: ['Master control point: control code', 'Relay or RTU: supported operations'], resp: [{ l: 'Expected Select response after fix', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)], n: 'Status 00.' }] },
+      where: ['Master control point: control code', 'Relay or RTU: supported operations'], resp: [{ l: 'Expected Select response after fix', k: 'hex', f: [0x44, 1, 10, CROBR(3, 0x41, 0x64, 0x00, 0)], n: 'Status 00.' }] },
     { s: 4, sev: 'H', tags: ['Protocol', 'Troubleshooting'], t: 'Command sent to the wrong point: off-by-one index',
       site: 'Point list is one-based; the RTU expects zero-based. Master closes CB-03 at index 5 but the RTU maps CB-03 to index 4.',
       sym: 'A different breaker operates, or the RTU returns Object Unknown.',
@@ -505,6 +505,16 @@
       where: ['Switch SPAN port', 'Wireshark display filter on dnp3'], resp: [] }
   );
 
+
+  SCEN.push(
+    { s: 1, sev: 'H', tags: ['Serial', 'Troubleshooting'], t: 'RS-485 polarity: A/B versus +/- labels differ between vendors',
+      site: 'Mixed-vendor serial bus: a Schneider-supplied master, a Siemens gateway and SEL relays, each labelling the two data terminals differently.',
+      sym: 'Baud, parity and termination are right but the bus is silent or returns garbage. Swapping two wires fixes it and nobody knows which label was wrong.',
+      ex: [],
+      params: ['Standard: TIA-485 and Modbus Serial Line: A = D0 = inverting (-), B = D1 = non-inverting (+)', 'Schneider (Modbus devices): usually D1 = B = +, D0 = A = -; some products print +/- or A/B, so read the terminal legend', 'Siemens (PROFIBUS-style DB9): pin 3 = RxD/TxD-P = B (+), pin 8 = RxD/TxD-N = A (-); other Siemens RS-485 ports use A/B, check the legend', 'ABB: labels vary by product (A/B or +/-) and I found no single convention: read the terminal diagram', 'SEL: EIA-485 ports label +TX, -TX, +RX, -RX (4-wire). Cross to the remote end: +TX to +RX, -TX to -RX', 'Some chip makers and vendors reverse the A/B letters: treat this list as a guide and confirm with a meter'],
+      fix: ['Ignore the letters. Decide which terminal is the + (B, non-inverting) and which is the - (A, inverting) from each device manual.', 'With the bus powered, idle and biased, measure DC between the two wires: the + line should be 200 mV or more above the - line.', 'On a 2-wire bus wire + to + and - to - on every node.', 'On a 4-wire link (SEL style) cross transmit to receive: master +TX to device +RX, -TX to -RX, and device +TX to master +RX.', 'If one node still fails, swap the pair at that node only, then label the cable with the final polarity.'],
+      where: ['Terminal drawing in each device manual', 'Converter or gateway terminal legend'], resp: [] }
+  );
   SCEN.forEach(function (s, i) { s.id = 1000 + i; });
 
   function tipStage(t) {
@@ -537,7 +547,8 @@
   var state = {
     q: '', tag: 'all', stage: 'all', sort: 'default',
     bookmarks: load('dnp3uae.bookmarks', []),
-    checklist: load('dnp3uae.checklist', [])
+    checklist: load('dnp3uae.checklist', []),
+    site: load('dnp3uae.site', { name: '', notes: '' })
   };
 
   // ---------- toast ----------
@@ -763,6 +774,30 @@
   function openDrawer() { renderChecklist(); $('checklist').hidden = false; document.body.classList.add('no-scroll'); }
   function closeDrawer() { $('checklist').hidden = true; document.body.classList.remove('no-scroll'); }
 
+  // ---------- commissioning summary ----------
+  function scenById(id) { for (var i = 0; i < SCEN.length; i++) if (SCEN[i].id === id) return SCEN[i]; return null; }
+
+  function summaryText() {
+    var done = [], pend = [];
+    state.checklist.forEach(function (c) {
+      var t = findTip(c.id); if (!t) return;
+      var sc = scenById(c.id);
+      var label = (sc ? 'Stage ' + sc.s + ': ' : '') + t.title;
+      (c.done ? done : pend).push(label);
+    });
+    var when;
+    try { when = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' GST'; }
+    catch (e) { when = new Date().toISOString(); }
+    var total = done.length + pend.length;
+    var out = '*DNP3 Commissioning Summary*\n';
+    if (state.site.name) out += 'Site: ' + state.site.name + '\n';
+    out += 'Date: ' + when + '\nProgress: ' + done.length + ' of ' + total + ' complete\n';
+    if (done.length) out += '\n*Completed*\n' + done.map(function (x) { return '\u2705 ' + x; }).join('\n') + '\n';
+    if (pend.length) out += '\n*Still to do*\n' + pend.map(function (x) { return '\u2B1C ' + x; }).join('\n') + '\n';
+    if (state.site.notes) out += '\n*Site notes*\n' + state.site.notes + '\n';
+    return out.replace(/\s+$/, '') + '\n\n_From the DNP3 UAE Field Guide_';
+  }
+
   // ---------- IIN decoder ----------
   var IIN1 = ['All stations (broadcast) received', 'Class 1 events available', 'Class 2 events available', 'Class 3 events available', 'Need Time (time sync required)', 'Local Control (outputs in local)', 'Device Trouble (hardware fault)', 'Device Restart'];
   var IIN2 = ['No function code support', 'Object Unknown (point/variation not supported)', 'Parameter Error (bad qualifier or range)', 'Event Buffer Overflow', 'Already Executing (operation in progress)', 'Configuration Corrupt', 'Reserved (bit 6)', 'Reserved (bit 7)'];
@@ -929,8 +964,8 @@
       [1, 'Packed', '1 bit per point', 'Read back output state', 1],
       [2, 'With flags', '1 byte flags and state', 'Preferred output status', 1]] },
     { g: 12, t: 'Control relay output block (CROB)', r: [
-      [1, 'CROB', '11 bytes: control code, count, on-time ms (4), off-time ms (4), status', 'Select, Operate, Direct Operate. Pulse close 0x11, pulse trip 0x21, latch on 0x03, latch off 0x04', 0]],
-      note: 'Control code bits: 0-3 operation (1 pulse on, 2 pulse off, 3 latch on, 4 latch off), 4-5 close (1) or trip (2), 6 clear, 7 queue.' },
+      [1, 'CROB', '11 bytes: control code, count, on-time ms (4), off-time ms (4), status', 'Select, Operate, Direct Operate. Pulse close 0x41, pulse trip 0x81, latch on 0x03, latch off 0x04', 0]],
+      note: 'Control code bits: 0-3 operation (1 pulse on, 2 pulse off, 3 latch on, 4 latch off), bit 4 queue, bit 5 clear, bits 6-7 trip/close code (1 close, 2 trip). So close pulse = 0x41 and trip pulse = 0x81.' },
     { g: 20, t: 'Counter (running)', r: [
       [1, '32-bit with flag', '1 flag byte + 4 bytes', 'Running count', 1],
       [2, '16-bit with flag', '1 flag byte + 2 bytes', 'Wraps at 65535', 1],
@@ -991,8 +1026,22 @@
     return html || '<tr><td colspan="5" class="muted">No objects match.</td></tr>';
   }
 
+  var PRESETS = [
+    { t: 'Breaker trip / close', d: 'Group 12 var 1 (CROB) with SBO. Close = pulse on + close = 0x41. Trip = pulse on + trip = 0x81. Use latch on 0x03 / latch off 0x04 for non-breaker outputs.', c: [['0C 01 17', 'g12v1 header'], ['41', 'Close pulse'], ['81', 'Trip pulse']] },
+    { t: 'SOE events', d: 'Group 2 var 2: binary input event with absolute time. The time is 48 bits (6 bytes): milliseconds since 1970 UTC.', c: [['3C 02 06', 'Class 1 event poll'], ['3C 03 06', 'Class 2 event poll']] },
+    { t: 'Analogues', d: 'Group 30 var 1 = 32-bit with flag (default). Group 30 var 2 = 16-bit with flag, which overflows past 32767. Events: g32 v3 (32-bit) or v4 (16-bit) with time.', c: [['1E 01 06', 'g30v1 read all'], ['1E 02 06', 'g30v2 read all']] },
+    { t: 'Class 0 read', d: 'Group 60 var 1 = Class 0 (all static data). Use for the startup and periodic integrity poll. Qualifier 06 = all objects.', c: [['3C 01 06', 'Class 0']] }
+  ];
+
+  function presetHTML() {
+    return '<div class="presets">' + PRESETS.map(function (p) {
+      return '<div class="preset"><h3>' + esc(p.t) + '</h3><p>' + esc(p.d) + '</p><div class="chips">' +
+        p.c.map(function (c) { return '<span class="chip-wrap"><button type="button" class="copy-chip mono" data-tcopy="' + c[0] + '">' + c[0] + '</button><small>' + esc(c[1]) + '</small></span>'; }).join('') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
   function toolObjects() {
-    return '<h2 id="toolTitle">DNP3 object cheat sheet</h2><p class="hint">Tap a hex chip to copy the group, variation and qualifier 06 (all objects) for a Read request.</p>' +
+    return '<h2 id="toolTitle">DNP3 object cheat sheet</h2><h3 class="sub2">Point type presets</h3>' + presetHTML() + '<h3 class="sub2">All objects</h3><p class="hint">Tap a hex chip to copy the group, variation and qualifier 06 (all objects) for a Read request.</p>' +
       '<label class="sr-only" for="csFilter">Filter objects</label><input id="csFilter" type="search" placeholder="Filter, e.g. g30, float, counter, time" autocomplete="off">' +
       '<div class="table-wrap"><table class="hex-table obj-table"><thead><tr><th>Object</th><th>Variation</th><th>Content</th><th>Typical use</th><th>Read-all bytes</th></tr></thead><tbody id="csBody">' + objTable('') + '</tbody></table></div>';
   }
@@ -1006,7 +1055,7 @@
 
   function toolSBO() {
     return '<h2 id="toolTitle">SBO timing simulator</h2>' +
-      '<p class="hint">Breaker CB-03, index 5, CROB pulse close (0x11), on-time 100 ms. The outstation arms the point for ' + SBO_TIMEOUT + ' seconds after Select.</p>' +
+      '<p class="hint">Breaker CB-03, index 5, CROB pulse close (0x41), on-time 100 ms. The outstation arms the point for ' + SBO_TIMEOUT + ' seconds after Select.</p>' +
       '<div class="sbo-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + SBO_TIMEOUT + '" aria-valuenow="0" id="sboBarWrap"><div id="sboBar" class="sbo-fill"></div></div>' +
       '<p id="sboStatus" class="sbo-status">Idle. Send Select to arm the point.</p>' +
       '<div class="btn-row"><button type="button" class="btn btn-accent" id="sboSelect">Send Select (Func 0x03, CROB Close)</button>' +
@@ -1043,8 +1092,8 @@
   function sboSelect() {
     sboStop(); sbo.state = 'armed'; sbo.t0 = Date.now();
     $('sboOperate').disabled = false;
-    sboLog('0.0 s  Select sent', sboFrame(0xC4, 10, 1, CROBQ(0x03, 3, 0x11, 0x64, 0x00)), 'Function 0x03, g12 v1 index 5. App sequence 3.', '');
-    sboLog('0.0 s  Select response', sboFrame(0x44, 1, 10, CROBR(3, 0x11, 0x64, 0x00, 0)), 'Control status 0x00 Success: point armed for ' + SBO_TIMEOUT + ' s.', 'ok');
+    sboLog('0.0 s  Select sent', sboFrame(0xC4, 10, 1, CROBQ(0x03, 3, 0x41, 0x64, 0x00)), 'Function 0x03, g12 v1 index 5. App sequence 3.', '');
+    sboLog('0.0 s  Select response', sboFrame(0x44, 1, 10, CROBR(3, 0x41, 0x64, 0x00, 0)), 'Control status 0x00 Success: point armed for ' + SBO_TIMEOUT + ' s.', 'ok');
     sboUpdate(); sbo.timer = setInterval(sboUpdate, 100);
   }
 
@@ -1054,8 +1103,8 @@
     if (sbo.state === 'armed') { st = 0; note = 'Control status 0x00 Success. The RTU pulses the close output for 100 ms.'; cls = 'ok'; sboStop(); sbo.state = 'done'; $('sboStatus').textContent = 'Operate executed. Breaker command issued.'; var b = $('sboBar'); b.style.width = '100%'; b.className = 'sbo-fill ok'; $('sboOperate').disabled = true; }
     else if (sbo.state === 'expired') { st = 1; note = 'Control status 0x01 Timeout: Operate arrived after the arm window closed. Send Select again.'; cls = 'bad'; $('sboStatus').textContent = 'Operate refused: arm timeout.'; }
     else { st = 2; note = 'Control status 0x02 No Select: nothing is armed. Send Select first.'; cls = 'bad'; }
-    sboLog(t + '  Operate sent', sboFrame(0xC4, 10, 1, CROBQ(0x04, 4, 0x11, 0x64, 0x00)), 'Function 0x04, same objects, app sequence 4 (Select + 1).', '');
-    sboLog(t + '  Operate response', sboFrame(0x44, 1, 10, CROBR(4, 0x11, 0x64, 0x00, st)), note, cls);
+    sboLog(t + '  Operate sent', sboFrame(0xC4, 10, 1, CROBQ(0x04, 4, 0x41, 0x64, 0x00)), 'Function 0x04, same objects, app sequence 4 (Select + 1).', '');
+    sboLog(t + '  Operate response', sboFrame(0x44, 1, 10, CROBR(4, 0x41, 0x64, 0x00, st)), note, cls);
   }
 
   function sboReset() {
@@ -1206,6 +1255,13 @@
       var id = parseInt(cb.getAttribute('data-check'), 10);
       state.checklist.forEach(function (c) { if (c.id === id) c.done = cb.checked; });
       store('dnp3uae.checklist', state.checklist); renderChecklist();
+    });
+    $('siteName').value = state.site.name; $('siteNotes').value = state.site.notes;
+    function saveSite() { state.site = { name: $('siteName').value.trim(), notes: $('siteNotes').value.trim() }; store('dnp3uae.site', state.site); }
+    $('siteName').addEventListener('input', saveSite); $('siteNotes').addEventListener('input', saveSite);
+    $('checklistSummary').addEventListener('click', function () {
+      if (!state.checklist.length) { toast('Add checklist items first'); return; }
+      saveSite(); copyText(summaryText(), 'Commissioning summary copied');
     });
     $('checklistCopy').addEventListener('click', function () {
       if (!state.checklist.length) { toast('Checklist is empty'); return; }
