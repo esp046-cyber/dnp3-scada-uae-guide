@@ -21,7 +21,7 @@ Startup sequence: connect, read Class 0 then Classes 1, 2, 3, then enable unsoli
 3. Master sends Operate (FC 0x04) with identical objects and application sequence = Select + 1, inside the select timeout (typically 5-10 s).
 4. Outstation executes and replies.
 
-Status codes: 0 Success, 1 Timeout, 2 No select, 3 Format error, 4 Not supported, 7 Local, 8 Too many operations.
+Status codes: 0 Success, 1 Timeout, 2 No select, 3 Format error, 4 Not supported, 7 Local, 8 Too many objects, 9 Not authorized.
 
 ## 4. Frame anatomy
 `05 64 LEN CTRL DEST(2) SRC(2) CRC(2)` followed by 16-byte data blocks, each with a CRC. LEN = 5 + user data bytes. CRC-16 uses polynomial 0x3D65, sent low byte first. Addresses are little-endian.
@@ -88,3 +88,69 @@ Follow current DESC ISR and UAE IA Regulation requirements as given by the utili
 - [ ] Failover test
 - [ ] Time sync verified
 - [ ] Config backed up and as-built recorded
+
+## 13. CROB control codes (IEEE 1815)
+The control code byte is: bits 6-7 trip/close code (1 close, 2 trip), bit 5 clear, bit 4 queue, bits 0-3 operation (1 pulse on, 2 pulse off, 3 latch on, 4 latch off).
+
+| Code | Meaning |
+|---|---|
+| 0x41 | Close (code 1) + pulse on (operation 1) |
+| 0x81 | Trip (code 2) + pulse on (operation 1) |
+| 0x03 | Latch on |
+| 0x04 | Latch off |
+
+## 14. Secure Authentication (SAv5, group 120)
+g120 v1 Challenge, v2 Reply, v3 Aggressive mode request, v4 Session key status request, v5 Session key status, v6 Session key change, v7 Error, v9 HMAC.
+If the utility specification (DESC / UAE IA) requires SAv5 and breaker controls fail or are dropped silently, check SAv5 is enabled on both sides and update keys and session keys are loaded. A rejected control normally returns status 0x09 Not Authorized; 0x07 is Local.
+
+Clocks: SAv5 challenge-reply does not depend on synchronised clocks, and the standard defines no time-skew error. The g120 v7 error codes include 1 Authentication failed and 4 Aggressive mode not supported. Drifting clocks do not make the RTU reject a reply, but they still corrupt event timestamps and any certificate-based key validity, so keep time sync (g50) correct. Typical causes of a rejected reply are mismatched keys, a wrong user number, an unsupported MAC algorithm or an aggressive-mode mismatch.
+
+## 15. DNP3 to IEC 60870-5-104 conversion
+| DNP3 | IEC 104 | Note |
+|---|---|---|
+| g1 / g2 binary input | M_SP_NA_1 (Type 1), with time M_SP_TB_1 (Type 30) | Double point (Type 3) needs two binaries |
+| g12 CROB | C_DC_NA_1 (Type 46) or C_SC_NA_1 (Type 45) | Close 0x41 = DCS 2, trip 0x81 = DCS 1; Select = S/E 1. Type 46 is expected for switchgear circuit breakers (Trip/Close): do not map DNP3 CROB breakers to Type 45 in utility transmission and distribution networks. Confirm in the utility interface specification. |
+| g30 / g32 analogue | M_ME_NA_1 (Type 9), M_ME_NB_1 (Type 11), M_ME_NC_1 (Type 13) | Prefer scaled or float |
+| g20 / g21 / g22 counters | M_IT_NA_1 (Type 15), with time M_IT_TB_1 (Type 37) | Freeze maps to C_CI_NA_1 (Type 101) |
+| Class 0 poll | C_IC_NA_1 (Type 100) | Events map to spontaneous (COT 3) |
+| g50 v1 time write | C_CS_NA_1 (Type 103) | UTC; keep the summer-time bit 0 in the UAE |
+| IIN1.7 Device Restart | M_EI_NA_1 (Type 70) | End of initialisation |
+
+## 16. Timestamps
+DNP3 time is 48-bit UTC. The UAE uses GST (UTC+4, no DST). A 4-hour offset in SCADA means local time was sent as UTC or the UTC-offset setting is missing in the RTU or master.
+
+## 17. Implementation levels
+Levels are cumulative. Host and device levels are independent, so compare both Device Profiles.
+
+| Level | Adds |
+|---|---|
+| 1 | Minimum master-to-IED communication: simple reads and writes, class and static polling, unsolicited messages |
+| 2 | Counter freeze requests; more variation and object read combinations, including binary input events |
+| 3 | Wider range of read requests; enable/disable unsolicited by Class 1, 2, 3 |
+| 4 | Self-address (0xFFFC), device attributes (g0), double-bit inputs, variations with time, floating-point analogue variations |
+
+File transfer (g70), Secure Authentication (g120), data sets and virtual terminal are optional and not required at any level. A Level 2 device asked for g30v5 float answers Object Unknown (IIN2.1). Read the device profile for control (g12), deadband (g34) and time sync support.
+
+## 18. Special link addresses
+0xFFFF broadcast (link confirm optional), 0xFFFE broadcast (confirm mandatory), 0xFFFD broadcast (no confirm), 0xFFFC self-address (optional feature), 0xFFF0-0xFFFB reserved. Outstations do not reply to broadcast requests, so a broadcast Read returns nothing. Broadcast is normally used for writes such as time sync, restarts, freezes or enabling unsolicited.
+
+## 19. Direct Operate on breakers
+Direct Operate (0x05) and Direct Operate No Ack (0x06) execute without a Select step, and 0x06 gives no response. Disable both for high-voltage breaker points so every control needs Select then Operate, and confirm in the utility specification.
+
+## 20. CRC-16 specification (link layer)
+DNP3 Link Layer CRC-16: Polynomial 0x3D65 | Initial Seed 0x0000 | Final XOR 0xFFFF | Inverted and little-endian.
+
+- Algorithm: CRC-16/DNP, reflected (input and output bits reversed). Reflected polynomial for shift-right code: 0xA6BC.
+- 0x3D65 = x^16 + x^13 + x^12 + x^11 + x^10 + x^8 + x^6 + x^5 + x^2 + 1.
+- Check value: CRC of ASCII "123456789" = 0xEA82.
+- Frame test: header 05 64 05 C0 01 00 00 04 gives 0x21E9, transmitted as E9 21.
+- One CRC covers the 8 header bytes. Each data block of up to 16 bytes then carries its own CRC.
+
+```
+crc = 0
+for each byte b:
+    crc ^= b
+    repeat 8 times:
+        crc = (crc >> 1) ^ 0xA6BC if (crc & 1) else crc >> 1
+crc = ~crc & 0xFFFF      # send low byte first
+```
