@@ -29,7 +29,7 @@
     ["Protocol,HexAnalysis","H","SBO sequence rules","Operate must repeat the Select objects exactly (index, control code, count, times) with application sequence = Select sequence + 1, inside the select timeout.","","03 0C 01 17 01 05 41 01 64 00 00 00 00 00 00 00 00"],
     ["Protocol","H","Align the select timeout","Typical select timeout is 5-10 s. If the operator is slower, Operate returns status 1 (timeout). Set the same value in master and RTU.","",""],
     ["Protocol","M","Know your CROB control codes","Pulse close 0x41, pulse trip 0x81, latch on 0x03, latch off 0x04. Many relays accept only specific codes, so configure per relay type.","",""],
-    ["Protocol,Troubleshooting","H","Read control status codes","0 Success, 1 Timeout, 2 No select, 3 Format error, 4 Not supported, 7 Local, 8 Too many operations. Status 7 means the Local/Remote switch is in Local.","",""],
+    ["Protocol,Troubleshooting","H","Read control status codes","0 Success, 1 Timeout, 2 No select, 3 Format error, 4 Not supported, 7 Local, 8 Too many objects, 9 Not authorized. Status 7 means the Local/Remote switch is in Local.","",""],
     ["Protocol","M","Match pulse widths to the breaker coil","Typical 100-500 ms close/trip pulses. A pulse shorter than the coil needs gives a successful response but no operation.","",""],
     ["Protocol,Troubleshooting","H","Send time in UTC only","DNP3 time is 48-bit milliseconds since 1970 UTC. The UAE is UTC+4 with no daylight saving. Never send local time.","",""],
     ["Protocol","M","Use Delay Measurement on slow links","FC 0x17 measures channel delay so the master can compensate the time write. Use it on radio and low-baud serial channels.","",""],
@@ -515,6 +515,24 @@
       fix: ['Ignore the letters. Decide which terminal is the + (B, non-inverting) and which is the - (A, inverting) from each device manual.', 'With the bus powered, idle and biased, measure DC between the two wires: the + line should be 200 mV or more above the - line.', 'On a 2-wire bus wire + to + and - to - on every node.', 'On a 4-wire link (SEL style) cross transmit to receive: master +TX to device +RX, -TX to -RX, and device +TX to master +RX.', 'If one node still fails, swap the pair at that node only, then label the cable with the final polarity.'],
       where: ['Terminal drawing in each device manual', 'Converter or gateway terminal legend'], resp: [] }
   );
+
+  SCEN.push(
+    { s: 3, sev: 'M', tags: ['Ethernet', 'DEWA', 'Protocol'], t: 'Gateway mapping: DNP3 points to IEC 60870-5-104 types',
+      site: 'A DNP3 RTU feeds a SCADA front end that speaks IEC 60870-5-104 through a protocol converter or gateway.',
+      sym: 'Points arrive but controls are rejected or values are scaled wrongly because a point was mapped to the wrong IEC type, for example a breaker as a single command or a float as normalised.',
+      ex: [],
+      params: ['Breaker control: C_DC_NA_1 (Type 46) double command with SBO', 'Analogue: M_ME_NC_1 (Type 13) short float, or M_ME_NB_1 (Type 11) scaled', 'Time: IEC CP56Time2a (7 bytes) from DNP3 48-bit UTC', 'Ports: DNP3 TCP 20000, IEC 104 TCP 2404'],
+      fix: ['Open the gateway mapping and list every DNP3 point against its IEC type using the table below.', 'Map breakers to double commands: DNP3 close (0x41) to DCS 2 (ON), DNP3 trip (0x81) to DCS 1 (OFF).', 'Map SBO: IEC S/E = 1 (select) to DNP3 Select, S/E = 0 (execute) to Operate.', 'Pick scaled or float for analogues so the range and engineering unit survive the conversion.', 'Check time: the UAE has no DST, so the IEC summer-time (SU) bit must stay 0.', 'Test each type end to end with the utility witness before sign-off.'],
+      where: ['Gateway mapping table: DNP3 object to IEC type ID', 'Gateway time settings: UTC and summer-time bit'], resp: [],
+      table: { title: 'Conversion table: DNP3 and IEC 60870-5-104', head: ['DNP3', 'IEC 60870-5-104', 'Mapping note'], rows: [
+        ['g1 v2 binary input, g2 v2 event with time', 'M_SP_NA_1 (Type 1) single point; with time M_SP_TB_1 (Type 30)', 'One DNP3 point = one single point. A double point (M_DP_NA_1, Type 3) needs two DNP3 binaries.'],
+        ['g12 v1 CROB (Select, Operate)', 'C_DC_NA_1 (Type 46) double command; C_SC_NA_1 (Type 45) single command', 'Close 0x41 = DCS 2 (ON), trip 0x81 = DCS 1 (OFF). Select = S/E 1, Operate = S/E 0. On-time maps to the QU pulse duration (short or long). Type 46 is expected for switchgear circuit breakers (Trip/Close): do not map DNP3 CROB breakers to Type 45 (Single Command) in utility transmission and distribution networks. Confirm in the utility interface specification.'],
+        ['g30 v1 / v2 / v5 analogue, g32 events', 'M_ME_NA_1 (Type 9) normalised, M_ME_NB_1 (Type 11) scaled, M_ME_NC_1 (Type 13) short float', 'Normalised carries a -1 to +1 range, so scaled or float avoids scaling mistakes. With time: Types 34, 35, 36.'],
+        ['g20 / g21 / g22 counters', 'M_IT_NA_1 (Type 15) integrated totals; with time M_IT_TB_1 (Type 37)', 'Freeze maps to counter interrogation C_CI_NA_1 (Type 101).'],
+        ['Class 0 integrity poll (g60 v1)', 'General interrogation C_IC_NA_1 (Type 100)', 'Class 1/2/3 events map to spontaneous transmission (COT 3).'],
+        ['g50 v1 time write', 'Clock synchronisation C_CS_NA_1 (Type 103)', 'DNP3 is 48-bit UTC ms; IEC CP56Time2a is 7 bytes with SU (summer time) and IV bits.'],
+        ['IIN1.7 Device Restart', 'M_EI_NA_1 (Type 70) end of initialisation', 'Both tell the master to re-read the station.']] } }
+  );
   SCEN.forEach(function (s, i) { s.id = 1000 + i; });
 
   function tipStage(t) {
@@ -548,7 +566,7 @@
     q: '', tag: 'all', stage: 'all', sort: 'default',
     bookmarks: load('dnp3uae.bookmarks', []),
     checklist: load('dnp3uae.checklist', []),
-    site: load('dnp3uae.site', { name: '', notes: '' })
+    site: load('dnp3uae.site', { name: '', notes: '', rtu: '', ts: 'unchecked', date: '' })
   };
 
   // ---------- toast ----------
@@ -562,17 +580,40 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); t.hidden = true; }, 3200);
   }
 
+  // Clipboard: the synchronous execCommand copy runs first, inside the tap, because iOS Safari
+  // (especially standalone PWAs) can refuse copies that happen after an async step.
+  // If both methods fail, a selectable text box opens so the engineer can copy by hand.
+  var manualText = '';
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px;';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      ta.focus({ preventScroll: true });
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
   function copyText(text, okMsg) {
-    function fallback() {
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); toast(okMsg || 'Copied'); } catch (e) { toast('Copy failed'); }
-      document.body.removeChild(ta);
-    }
+    if (legacyCopy(text)) { toast(okMsg || 'Copied'); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () { toast(okMsg || 'Copied'); }, fallback);
-    } else { fallback(); }
+      try {
+        navigator.clipboard.writeText(text).then(function () { toast(okMsg || 'Copied'); }, function () { manualCopy(text); });
+        return;
+      } catch (e) { /* fall through */ }
+    }
+    manualCopy(text);
+  }
+  function manualCopy(text) {
+    manualText = text;
+    openTool('manual');
+    var ta = $('manualBox');
+    if (ta) { ta.focus(); ta.select(); }
   }
 
   // ---------- filtering and rendering ----------
@@ -641,7 +682,7 @@
     if (state.tag === 'bookmarks' && state.bookmarks.indexOf(s.id) < 0) return false;
     if (state.tag !== 'all' && state.tag !== 'bookmarks' && s.tags.indexOf(state.tag) < 0) return false;
     if (state.q) {
-      var hay = (s.t + ' ' + s.site + ' ' + s.sym + ' ' + s.params.join(' ') + ' ' + s.fix.join(' ') + ' ' + (s.where || []).join(' ') + ' ' + s.tags.join(' ')).toLowerCase();
+      var hay = (s.t + ' ' + s.site + ' ' + s.sym + ' ' + s.params.join(' ') + ' ' + s.fix.join(' ') + ' ' + (s.where || []).join(' ') + ' ' + (s.table ? s.table.rows.join(' ') : '') + ' ' + s.tags.join(' ')).toLowerCase();
       var words = state.q.toLowerCase().split(/\s+/);
       for (var i = 0; i < words.length; i++) { if (words[i] && hay.indexOf(words[i]) < 0) return false; }
     }
@@ -673,13 +714,16 @@
     var trace = (hasEx || hasResp) ? '<section class="blk"><h4>Trace / hex example</h4>' +
       (hasEx ? '<h5 class="ex-sub">Request or capture</h5>' + exBlock(s.ex, idx, 'e', false) : '') +
       (hasResp ? '<h5 class="ex-sub ok">Expected response once fixed</h5>' + exBlock(s.resp, idx, 'r', true) : '') + '</section>' : '';
+    var conv = s.table ? '<section class="blk"><details class="conv"><summary>' + esc(s.table.title) + '</summary><div class="table-wrap"><table class="hex-table conv-table"><thead><tr>' +
+      s.table.head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      s.table.rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div></details></section>' : '';
     return '<article class="scen sev-' + s.sev + '" data-scen="' + s.id + '">' +
       '<div class="card-top"><span class="stage-badge">Stage ' + s.s + '</span><span class="sev">' + SEV[s.sev] + '</span>' +
       '<button type="button" class="bm' + (saved ? ' is-saved' : '') + '" data-bm="' + s.id + '" aria-pressed="' + saved + '" aria-label="' + (saved ? 'Remove bookmark' : 'Bookmark scenario') + '">' + (saved ? '&#9733;' : '&#9734;') + '</button></div>' +
       '<h3>' + esc(s.t) + '</h3>' +
       '<section class="blk"><h4>Site context</h4><p>' + esc(s.site) + '</p></section>' +
       '<section class="blk bad"><h4>What goes wrong</h4><p>' + esc(s.sym) + '</p></section>' +
-      fix + trace +
+      fix + conv + trace +
       '<div class="tags">' + s.tags.map(function (g) { return '<span class="tag">#' + esc(g) + '</span>'; }).join('') + '</div></article>';
   }
 
@@ -798,6 +842,31 @@
     return out.replace(/\s+$/, '') + '\n\n_From the DNP3 UAE Field Guide_';
   }
 
+  var TS_TEXT = { unchecked: 'Not checked', ok: 'Verified: DNP3 time sent as UTC, SCADA shows GST (UTC+4, no DST)', offset: 'Offset found: 4-hour difference between RTU and SCADA, needs correction' };
+  function gstDate() { try { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }); } catch (e) { return new Date().toISOString().slice(0, 10); } }
+  function prettyDate(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); if (!m) return iso || gstDate();
+    var mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(m[2], 10) - 1];
+    return m[3] + ' ' + mon + ' ' + m[1];
+  }
+  function handoverText() {
+    var done = [], pend = [];
+    state.checklist.forEach(function (c) {
+      var t = findTip(c.id); if (!t) return;
+      var sc = scenById(c.id);
+      (c.done ? done : pend).push((sc ? 'Stage ' + sc.s + ': ' : '') + t.title);
+    });
+    var out = 'DNP3 COMMISSIONING HANDOVER\n';
+    if (state.site.name) out += 'Site: ' + state.site.name + '\n';
+    out += 'RTU link address: ' + (state.site.rtu || 'not recorded') + '\n';
+    out += 'Time sync (GST, UTC+4): ' + (TS_TEXT[state.site.ts] || TS_TEXT.unchecked) + '\n';
+    out += 'Verification date: ' + prettyDate(state.site.date) + '\n';
+    out += '\nVERIFIED (' + done.length + ')\n' + done.map(function (x) { return '[x] ' + x; }).join('\n') + '\n';
+    if (pend.length) out += '\nOUTSTANDING (' + pend.length + ')\n' + pend.map(function (x) { return '[ ] ' + x; }).join('\n') + '\n';
+    if (state.site.notes) out += '\nNOTES\n' + state.site.notes + '\n';
+    return out;
+  }
+
   // ---------- IIN decoder ----------
   var IIN1 = ['All stations (broadcast) received', 'Class 1 events available', 'Class 2 events available', 'Class 3 events available', 'Need Time (time sync required)', 'Local Control (outputs in local)', 'Device Trouble (hardware fault)', 'Device Restart'];
   var IIN2 = ['No function code support', 'Object Unknown (point/variation not supported)', 'Parameter Error (bad qualifier or range)', 'Event Buffer Overflow', 'Already Executing (operation in progress)', 'Configuration Corrupt', 'Reserved (bit 6)', 'Reserved (bit 7)'];
@@ -892,6 +961,14 @@
     rows.push(row('Link control', hex2(ctl), (dir ? 'From master' : 'From outstation') + ', ' + (prm ? 'primary' : 'secondary') + ', function ' + fn + ' ' + fnName + (prm ? '. PRM=1 means this station started the link transfer; it does not mean unsolicited.' : '')));
     var dst = b[4] | (b[5] << 8), src = b[6] | (b[7] << 8);
     rows.push(row('Destination', hex2(b[4]) + ' ' + hex2(b[5]), String(dst) + (dst >= 0xFFF0 ? ' (reserved or broadcast)' : '')));
+    if (dst >= 0xFFFD) {
+      var bc = dst === 0xFFFF ? 'link confirm optional' : dst === 0xFFFE ? 'link confirm mandatory' : 'link confirm not required';
+      rows.push(row('Broadcast', '0x' + dst.toString(16).toUpperCase(), 'Broadcast Address detected (0x' + dst.toString(16).toUpperCase() + ', ' + bc + '). Note: DNP3 outstations will NOT reply to broadcast Read requests, to prevent bus collisions. Broadcast is normally used for writes such as time sync, or for restarts, freezes and enabling unsolicited.', 'warn'));
+    } else if (dst === 0xFFFC) {
+      rows.push(row('Self address', '0xFFFC', 'Self-address (optional Level 4 feature): an outstation that supports it replies with its own link address. This is not a broadcast.', 'warn'));
+    } else if (dst >= 0xFFF0) {
+      rows.push(row('Reserved', '0x' + dst.toString(16).toUpperCase(), 'Reserved address: do not use for a device.', 'warn'));
+    }
     rows.push(row('Source', hex2(b[6]) + ' ' + hex2(b[7]), String(src) + (src >= 0xFFF0 ? ' (reserved)' : '')));
     var hc = crc16(b.slice(0, 8)), hv = b[8] | (b[9] << 8);
     rows.push(row('Header CRC', hex2(b[8]) + ' ' + hex2(b[9]), hc === hv ? 'OK' : 'MISMATCH (expected ' + hex2(hc & 255) + ' ' + hex2(hc >> 8) + ')', hc === hv ? 'ok' : 'bad'));
@@ -949,7 +1026,7 @@
   }
 
   function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
-  function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+  function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
 
   // ---------- toolbox: object cheat sheet, SBO simulator, sniffer filters ----------
   var OBJ = [
@@ -1000,6 +1077,16 @@
     { g: 50, t: 'Time and date', r: [
       [1, 'Time and date', '6 bytes: ms since 1970-01-01 UTC', 'Write (FC 0x02) to synchronise the outstation clock; send UTC', 1],
       [3, 'Last recorded time', '6 bytes', 'Used with Record Current Time (FC 0x18)', 1]] },
+    { g: 120, t: 'Secure Authentication (SAv5)', r: [
+      [1, 'Challenge', 'Challenge data, sequence number, user number', 'Sent by the station verifying a critical request', 0],
+      [2, 'Reply', 'Sequence number, user number, HMAC of the challenge', 'Answer to a challenge, using the session key', 0],
+      [3, 'Aggressive mode request', 'Sequence number, user number', 'Critical request plus its HMAC in one message, no challenge round trip', 0],
+      [4, 'Session key status request', 'User number', 'Master asks the outstation for its session key status', 0],
+      [5, 'Session key status', 'Key status, challenge data, key-change data', 'Outstation answer to the status request', 0],
+      [6, 'Session key change', 'Wrapped session keys', 'Master sends new session keys protected by the update key', 0],
+      [7, 'Error', 'Error code and text', 'Why an authentication attempt failed', 0],
+      [9, 'HMAC', 'Message authentication code', 'Appended to an authenticated request or reply', 0]],
+      note: 'Field note (DESC / UAE IA): if the utility specification requires SAv5 and breaker controls fail or are dropped silently, check that SAv5 is enabled on both sides and that update keys and session keys are loaded. A rejected control normally returns status 0x09 Not Authorized (0x07 is Local); some outstations simply ignore an unauthenticated critical request. Clocks: SAv5 challenge-reply does not depend on synchronised clocks and the standard defines no time-skew error (g120v7 codes include 1 Authentication failed and 4 Aggressive mode not supported). Drifting clocks do not make the RTU reject a reply, but they still corrupt event timestamps and any certificate-based key validity, so keep time sync (g50) correct.' },
     { g: 60, t: 'Class data', r: [
       [1, 'Class 0', 'All static data', 'Integrity poll', 1],
       [2, 'Class 1', 'Events assigned to Class 1', 'Event poll', 1],
@@ -1019,7 +1106,7 @@
       rows.forEach(function (r) {
         var bytes = r[4] ? hex2(grp.g) + ' ' + hex2(r[0]) + ' 06' : '';
         html += '<tr><td class="mono">g' + grp.g + 'v' + r[0] + '</td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td><td>' + esc(r[3]) + '</td><td>' +
-          (bytes ? '<button type="button" class="copy-chip mono" data-tcopy="' + bytes + '" aria-label="Copy read-all bytes for g' + grp.g + 'v' + r[0] + '">' + bytes + '</button>' : '<span class="muted">control only</span>') + '</td></tr>';
+          (bytes ? '<button type="button" class="copy-chip mono" data-tcopy="' + bytes + '" aria-label="Copy read-all bytes for g' + grp.g + 'v' + r[0] + '">' + bytes + '</button>' : '<span class="muted">not polled</span>') + '</td></tr>';
       });
       if (grp.note) html += '<tr class="note"><td colspan="5">' + esc(grp.note) + '</td></tr>';
     });
@@ -1027,15 +1114,15 @@
   }
 
   var PRESETS = [
-    { t: 'Breaker trip / close', d: 'Group 12 var 1 (CROB) with SBO. Close = pulse on + close = 0x41. Trip = pulse on + trip = 0x81. Use latch on 0x03 / latch off 0x04 for non-breaker outputs.', c: [['0C 01 17', 'g12v1 header'], ['41', 'Close pulse'], ['81', 'Trip pulse']] },
-    { t: 'SOE events', d: 'Group 2 var 2: binary input event with absolute time. The time is 48 bits (6 bytes): milliseconds since 1970 UTC.', c: [['3C 02 06', 'Class 1 event poll'], ['3C 03 06', 'Class 2 event poll']] },
+    { t: 'Breaker trip / close', d: 'Group 12 var 1 (CROB) with SBO. The control code is the trip/close code in bits 6-7 plus the operation in bits 0-3. 0x41 = close (code 1) + pulse on (operation 1). 0x81 = trip (code 2) + pulse on (operation 1). Latch on 0x03 / latch off 0x04 for non-breaker outputs.', c: [['0C 01 17', 'g12v1 header'], ['41', 'Close pulse'], ['81', 'Trip pulse']] },
+    { t: 'SOE events', d: 'Group 2 var 2: binary input event with absolute time. The time is 48 bits (6 bytes): milliseconds since 1970 UTC.', n: 'Time is 48-bit UTC. UAE local time is GST (UTC+4, no DST). If timestamps in SCADA show a 4-hour offset, local time is being sent as UTC or the time-zone / UTC-offset parameter is missing in the RTU or master.', c: [['3C 02 06', 'Class 1 event poll'], ['3C 03 06', 'Class 2 event poll']] },
     { t: 'Analogues', d: 'Group 30 var 1 = 32-bit with flag (default). Group 30 var 2 = 16-bit with flag, which overflows past 32767. Events: g32 v3 (32-bit) or v4 (16-bit) with time.', c: [['1E 01 06', 'g30v1 read all'], ['1E 02 06', 'g30v2 read all']] },
     { t: 'Class 0 read', d: 'Group 60 var 1 = Class 0 (all static data). Use for the startup and periodic integrity poll. Qualifier 06 = all objects.', c: [['3C 01 06', 'Class 0']] }
   ];
 
   function presetHTML() {
     return '<div class="presets">' + PRESETS.map(function (p) {
-      return '<div class="preset"><h3>' + esc(p.t) + '</h3><p>' + esc(p.d) + '</p><div class="chips">' +
+      return '<div class="preset"><h3>' + esc(p.t) + '</h3><p>' + esc(p.d) + '</p>' + (p.n ? '<p class="preset-note">' + esc(p.n) + '</p>' : '') + '<div class="chips">' +
         p.c.map(function (c) { return '<span class="chip-wrap"><button type="button" class="copy-chip mono" data-tcopy="' + c[0] + '">' + c[0] + '</button><small>' + esc(c[1]) + '</small></span>'; }).join('') + '</div></div>';
     }).join('') + '</div>';
   }
@@ -1055,14 +1142,15 @@
 
   function toolSBO() {
     return '<h2 id="toolTitle">SBO timing simulator</h2>' +
-      '<p class="hint">Breaker CB-03, index 5, CROB pulse close (0x41), on-time 100 ms. The outstation arms the point for ' + SBO_TIMEOUT + ' seconds after Select.</p>' +
+      '<div class="caution" role="note"><b>Caution: disable Direct Operate on HV breakers.</b> Direct Operate (0x05) and Direct Operate No Ack (0x06) execute with no Select step, and 0x06 sends no response. Utility practice is to disable both for high-voltage breaker points so every control needs Select, then Operate. Confirm in the utility specification.</div>' +
+      '<p class="hint">Breaker CB-03, index 5, CROB pulse close (0x41 = close code 1 + pulse on operation 1), on-time 100 ms. The outstation arms the point for ' + SBO_TIMEOUT + ' seconds after Select.</p>' +
       '<div class="sbo-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + SBO_TIMEOUT + '" aria-valuenow="0" id="sboBarWrap"><div id="sboBar" class="sbo-fill"></div></div>' +
       '<p id="sboStatus" class="sbo-status">Idle. Send Select to arm the point.</p>' +
       '<div class="btn-row"><button type="button" class="btn btn-accent" id="sboSelect">Send Select (Func 0x03, CROB Close)</button>' +
       '<button type="button" class="btn" id="sboOperate" disabled>Send Operate (Func 0x04)</button>' +
       '<button type="button" class="btn btn-ghost" id="sboReset">Reset</button></div>' +
       '<div id="sboLog" class="sbo-log" aria-live="polite"></div>' +
-      '<p class="hint small">Control status codes (IEEE 1815): 0x00 Success, 0x01 Timeout, 0x02 No Select, 0x04 Not Supported, 0x07 Local, 0x08 Too Many Objects. Arm timeout is 0x01; some devices answer 0x02 after the window.</p>';
+      '<p class="hint small">Control status codes (IEEE 1815): 0x00 Success, 0x01 Timeout, 0x02 No Select, 0x04 Not Supported, 0x07 Local, 0x08 Too Many Objects, 0x09 Not Authorized. Arm timeout is 0x01; some devices answer 0x02 after the window.</p>';
   }
 
   function sboLog(title, frameHex, note, cls) {
@@ -1144,12 +1232,42 @@
       '<div id="sfList">' + filterRows(10) + '</div>';
   }
 
+  function toolInstall() {
+    var share = '<svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var plus = '<svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    return '<h2 id="toolTitle">Install on iPhone</h2><p class="hint">Use Safari. Open the guide once while online so it can save itself for offline use.</p>' +
+      '<ol class="ios-steps"><li><span class="step-n">1</span><div>' + share + '<b>Tap the Share button</b> in the Safari toolbar.</div></li>' +
+      '<li><span class="step-n">2</span><div>' + plus + '<b>Select &lsquo;Add to Home Screen&rsquo;</b>, then tap Add.</div></li></ol>' +
+      '<div class="btn-row"><button type="button" class="btn btn-accent" data-close-tool>Got it</button></div>';
+  }
+
+  function toolLevels() {
+    var rows = [
+      ['Level 1', 'Minimum for master-to-IED communication: simple reads and writes, class and static polling, and unsolicited messages.', 'Fine for basic status and analogue RTUs. Check which event objects it really supports.'],
+      ['Level 2', 'Level 1 plus: accepting freeze requests on counters, and read requests for more variation and object combinations, including binary input change (event) objects.', 'The common level for substation RTUs. Use frozen counters (g21) for energy.'],
+      ['Level 3', 'Level 2 plus: a wider range of read requests, and enabling or disabling unsolicited responses for Class 1, 2 and 3.', 'Needed if the master controls unsolicited per class.'],
+      ['Level 4', 'Level 3 plus: self-address reservation (0xFFFC), device attributes (group 0), double-bit inputs, variations with time (frozen counters, events, analogue input events) and floating-point analogue variations.', 'Float (g30v5/g32v5 to v8) and timestamped analogue events only exist from here. A lower-level RTU answers Object Unknown (IIN2.1).']
+    ];
+    return '<h2 id="toolTitle">DNP3 implementation levels</h2><p class="hint">Levels are cumulative: each level includes everything below it. Host and device levels are independent, so compare both Device Profiles.</p>' +
+      '<div class="table-wrap"><table class="hex-table lvl-table"><thead><tr><th>Level</th><th>Adds</th><th>On-site check</th></tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr><td><b>' + r[0] + '</b></td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>'; }).join('') +
+      '<tr class="note"><td><b>Beyond</b></td><td colspan="2">File transfer (g70), Secure Authentication (g120), data sets and virtual terminal are optional and not required at any level. Support for control (g12), deadbands (g34) and time sync is not shown per level here: read the device profile.</td></tr>' +
+      '</tbody></table></div>' +
+      '<p class="hint small">Summary of the commonly published level definitions; the device\'s own Device Profile Document is the authority.</p>';
+  }
+
+  function toolManual() {
+    return '<h2 id="toolTitle">Copy by hand</h2><p class="hint">The phone blocked automatic copying. Touch and hold the text, choose Select All, then Copy.</p>' +
+      '<label class="sr-only" for="manualBox">Text to copy</label><textarea id="manualBox" class="mono" rows="12" readonly>' + esc(manualText) + '</textarea>' +
+      '<div class="btn-row"><button type="button" class="btn btn-accent" data-close-tool>Done</button></div>';
+  }
+
   // ----- tool modal plumbing -----
   var toolFocus = null;
   function openTool(name) {
     toolFocus = document.activeElement;
     sboStop();
-    $('toolBody').innerHTML = name === 'sbo' ? toolSBO() : name === 'filters' ? toolFilters() : toolObjects();
+    $('toolBody').innerHTML = name === 'sbo' ? toolSBO() : name === 'filters' ? toolFilters() : name === 'install' ? toolInstall() : name === 'levels' ? toolLevels() : name === 'manual' ? toolManual() : toolObjects();
     sbo.state = 'idle';
     $('toolModal').hidden = false;
     document.body.classList.add('no-scroll');
@@ -1257,7 +1375,13 @@
       store('dnp3uae.checklist', state.checklist); renderChecklist();
     });
     $('siteName').value = state.site.name; $('siteNotes').value = state.site.notes;
-    function saveSite() { state.site = { name: $('siteName').value.trim(), notes: $('siteNotes').value.trim() }; store('dnp3uae.site', state.site); }
+$('siteRtu').value = state.site.rtu || ''; $('siteTime').value = state.site.ts || 'unchecked'; $('siteDate').value = state.site.date || gstDate();
+    function saveSite() { state.site = { name: $('siteName').value.trim(), notes: $('siteNotes').value.trim(), rtu: $('siteRtu').value.replace(/\D/g, '').slice(0, 5), ts: $('siteTime').value, date: $('siteDate').value }; store('dnp3uae.site', state.site); }
+    ['siteRtu', 'siteTime', 'siteDate'].forEach(function (id) { $(id).addEventListener('input', saveSite); $(id).addEventListener('change', saveSite); });
+    $('checklistHandover').addEventListener('click', function () {
+      if (!state.checklist.some(function (c) { return c.done; })) { toast('Tick at least one verified item first'); return; }
+      saveSite(); copyText(handoverText(), 'Handover summary copied');
+    });
     $('siteName').addEventListener('input', saveSite); $('siteNotes').addEventListener('input', saveSite);
     $('checklistSummary').addEventListener('click', function () {
       if (!state.checklist.length) { toast('Add checklist items first'); return; }
@@ -1299,7 +1423,7 @@
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then(function () { deferredPrompt = null; $('installBtn').hidden = true; });
       } else if (isIOS()) {
-        toast('In Safari tap Share, then Add to Home Screen');
+        openTool('install');
       }
     });
   }

@@ -84,6 +84,7 @@
       <button type="button" class="tool-btn" data-tool="objects">Object Cheat Sheet</button>
       <button type="button" class="tool-btn" data-tool="sbo">SBO Simulator</button>
       <button type="button" class="tool-btn" data-tool="filters">Sniffer Filters</button>
+      <button type="button" class="tool-btn" data-tool="levels">DNP3 Levels</button>
     </nav>
   </header>
 
@@ -117,6 +118,18 @@
           <button id="hexClear" class="btn btn-ghost" type="button">Clear</button>
         </div>
         <div id="hexOut" class="hex-out" aria-live="polite"></div>
+        <p class="crc-note mono">DNP3 Link Layer CRC-16: Polynomial 0x3D65 | Initial Seed 0x0000 | Final XOR 0xFFFF | Inverted &amp; Little-Endian</p>
+        <details class="crc-ref">
+          <summary>CRC algorithm details</summary>
+          <ul>
+            <li>Name: CRC-16/DNP (reflected: input and output bits reversed, LSB first).</li>
+            <li>Polynomial 0x3D65 = x<sup>16</sup> + x<sup>13</sup> + x<sup>12</sup> + x<sup>11</sup> + x<sup>10</sup> + x<sup>8</sup> + x<sup>6</sup> + x<sup>5</sup> + x<sup>2</sup> + 1. Reflected form for shift-right code: 0xA6BC.</li>
+            <li>Seed 0x0000. Final XOR 0xFFFF (the result is inverted).</li>
+            <li>Sent low byte first. One CRC covers the 8 header bytes, then each data block of up to 16 bytes has its own.</li>
+            <li>Check value: CRC of ASCII "123456789" = 0xEA82.</li>
+            <li>Frame test: 05 64 05 C0 01 00 00 04 gives CRC 0x21E9, sent as E9 21.</li>
+          </ul>
+        </details>
       </article>
     </section>
 
@@ -177,10 +190,17 @@
       <p class="hint">Add steps from any tip. Progress is saved on this device.</p>
       <label class="lbl" for="siteName">Site / feeder</label>
       <input id="siteName" type="text" maxlength="80" placeholder="e.g. Jebel Ali 11 kV RMR-14" autocomplete="off">
+      <label class="lbl" for="siteRtu">RTU link address (decimal)</label>
+      <input id="siteRtu" type="text" inputmode="numeric" maxlength="5" placeholder="e.g. 10" autocomplete="off">
+      <label class="lbl" for="siteTime">Time sync status (GST, UTC+4)</label>
+      <select id="siteTime"><option value="unchecked">Not checked</option><option value="ok">Verified: UTC on the wire, GST in SCADA</option><option value="offset">Offset found: 4-hour difference</option></select>
+      <label class="lbl" for="siteDate">Verification date</label>
+      <input id="siteDate" type="date">
       <label class="lbl" for="siteNotes">Site notes (included in the summary)</label>
       <textarea id="siteNotes" rows="3" maxlength="600" placeholder="e.g. Baud 9600 8N1, RTU address 10, term. fitted at both ends"></textarea>
       <ul id="checklistItems" class="check-list"></ul>
       <div class="btn-row">
+        <button id="checklistHandover" class="btn btn-accent" type="button">Export Handover Summary</button>
         <button id="checklistSummary" class="btn btn-accent" type="button">Copy Commissioning Summary</button>
         <button id="checklistCopy" class="btn" type="button">Copy checklist</button>
         <button id="checklistReset" class="btn btn-ghost" type="button">Clear all</button>
